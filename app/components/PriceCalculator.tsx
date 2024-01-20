@@ -106,7 +106,7 @@ function PriceCalculator({ prices }: Props) {
     <div className="text-white flex flex-col p-4 md:p-10 container bg-gray-800 h-screen w-screen items-center md:items-start">
       <h1 className="text-3xl font-bold mb-6">Estacionamiento</h1>
       <section className="flex flex-col mb-10">
-        <div className="flex flex-col space-y-4 md:w-[20rem]">
+        <div className="flex flex-col md:w-[20rem] gap-3">
           <div className="flex items-center justify-between">
             <label className="text-lg">Tipo de vehículo:</label>
             <select
@@ -160,7 +160,7 @@ function PriceCalculator({ prices }: Props) {
         </div>
         <div className="text-lg mt-6">{calculateTotal()}</div>
       </section>
-      <section>
+      <section className="flex flex-col justify-center items-center md:w-[20rem] ">
         <button
           className="bg-white text-gray-800 rounded-md w-32 p-2 font-bold uppercase"
           onClick={handlePrint}
