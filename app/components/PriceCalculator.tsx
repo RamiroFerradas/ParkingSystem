@@ -3,21 +3,21 @@ import { Price } from "../models/Price";
 import { useParking } from "../context/ParkingContext";
 import TicketPrinter from "./Ticket";
 import ReactDOMServer from "react-dom/server";
+import { useState } from "react";
 
 type Props = {
   prices: Price[];
 };
 function PriceCalculator({ prices }: Props) {
-  const {
-    vehicle,
-    startTime,
-    endTime,
-    domain,
-    setVehicle,
-    setStartTime,
-    setEndTime,
-    setDomain,
-  } = useParking();
+  const currentHour = new Date().toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const [vehicle, setVehicle] = useState<string>("");
+  const [startTime, setStartTime] = useState<string>(currentHour);
+  const [endTime, setEndTime] = useState<string>("");
+  const [domain, setDomain] = useState<string>("");
+  const [collector, setCollector] = useState<string>("");
 
   const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setStartTime(e.target.value);
@@ -35,8 +35,12 @@ function PriceCalculator({ prices }: Props) {
     setDomain(e.target.value.toUpperCase());
   };
 
+  const handleCollectorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCollector(e.target.value.toUpperCase());
+  };
+
   const calculateTotal = (): string | JSX.Element => {
-    if (!vehicle || !startTime || !endTime) {
+    if (!vehicle || !startTime || !endTime || !collector || !domain) {
       return (
         <p className="text-red-300">{"Por favor, completa la información."}</p>
       );
@@ -67,7 +71,15 @@ function PriceCalculator({ prices }: Props) {
   const printTicket = async (writer: WritableStreamDefaultWriter) => {
     // Renderiza el componente TicketPrinter en un fragmento
     const ticketString = ReactDOMServer.renderToString(
-      <TicketPrinter prices={prices} />
+      <TicketPrinter
+        prices={prices}
+        domain={domain}
+        collector={collector}
+        startTime={startTime}
+        endTime={endTime}
+        totalPrice={calculateTotal()}
+        vehicle={vehicle}
+      />
     );
 
     // Escribe la cadena en la impresora
@@ -94,8 +106,8 @@ function PriceCalculator({ prices }: Props) {
     <div className="text-white flex flex-col p-4 md:p-10 container bg-gray-800 h-screen w-screen items-center md:items-start">
       <h1 className="text-3xl font-bold mb-6">Estacionamiento</h1>
       <section className="flex flex-col mb-10">
-        <div className="flex flex-col space-y-4 md:w-[400px]">
-          <div className="flex items-center space-x-4">
+        <div className="flex flex-col space-y-4 md:w-[20rem]">
+          <div className="flex items-center justify-between">
             <label className="text-lg">Tipo de vehículo:</label>
             <select
               className="p-2 border border-gray-300 text-black rounded w-32"
@@ -109,7 +121,7 @@ function PriceCalculator({ prices }: Props) {
               ))}
             </select>
           </div>
-          <div className="flex items-center space-x-9">
+          <div className="flex items-center justify-between">
             <label className="text-lg">Hora de inicio:</label>
             <input
               type="time"
@@ -118,7 +130,7 @@ function PriceCalculator({ prices }: Props) {
               value={startTime}
             />
           </div>
-          <div className="flex items-center space-x-14">
+          <div className="flex items-center justify-between">
             <label className="text-lg">Hora de fin:</label>
             <input
               type="time"
@@ -127,13 +139,22 @@ function PriceCalculator({ prices }: Props) {
               value={endTime}
             />
           </div>
-          <div className="flex items-center space-x-20">
+          <div className="flex items-center justify-between">
             <label className="text-lg">Dominio:</label>
             <input
               type="text"
               className="p-2 border border-gray-300 text-black rounded w-32"
               onChange={handleDomainChange}
               value={domain}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-lg">Cobrador:</label>
+            <input
+              type="text"
+              className="p-2 border border-gray-300 text-black rounded w-32"
+              onChange={handleCollectorChange}
+              value={collector}
             />
           </div>
         </div>

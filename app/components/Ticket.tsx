@@ -1,15 +1,24 @@
 "use client";
 import { Br, Cut, Line, Printer, Text, Row } from "react-thermal-printer";
-import { useParking } from "../context/ParkingContext";
 import { Price } from "../models/Price";
 
 type Props = {
   prices: Price[];
+  vehicle: string;
+  startTime: string;
+  endTime: string;
+  domain: string;
+  collector: string;
+  totalPrice: string | JSX.Element;
 };
 
-const TicketPrinter = ({ prices }: Props) => {
-  const { vehicle, startTime, endTime, domain } = useParking();
-
+const TicketPrinter = ({
+  prices,
+  vehicle,
+  startTime,
+  endTime,
+  domain,
+}: Props) => {
   const calculateTotal = (): { hours: number; totalPrice: number } | null => {
     if (!vehicle || !startTime || !endTime) {
       return null;
