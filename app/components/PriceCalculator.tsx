@@ -18,7 +18,7 @@ function PriceCalculator({ prices }: Props) {
     setEndTime,
     setDomain,
   } = useParking();
-  console.log(vehicle);
+
   const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setStartTime(e.target.value);
   };
@@ -91,60 +91,62 @@ function PriceCalculator({ prices }: Props) {
   };
 
   return (
-    <div className="text-white flex flex-col p-10">
-      <h1 className="text-3xl font-bold mb-6">
-        Calculadora de Precio de Estacionamiento
-      </h1>
-      <div className="flex flex-col space-y-4 w-[400px]">
-        <div className="flex items-center space-x-4">
-          <label className="text-lg">Tipo de vehículo:</label>
-          <select
-            className="p-2 border border-gray-300 text-black rounded"
-            onChange={handleVehicleChange}
-            value={vehicle}
-          >
-            {prices.map((price) => (
-              <option key={price.id} value={price.vehiculo}>
-                {price.vehiculo}
-              </option>
-            ))}
-          </select>
+    <div className="text-white flex flex-col p-4 md:p-10 container bg-gray-800 h-screen w-screen items-center md:items-start">
+      <h1 className="text-3xl font-bold mb-6">Estacionamiento</h1>
+      <section className="flex flex-col mb-10">
+        <div className="flex flex-col space-y-4 md:w-[400px]">
+          <div className="flex items-center space-x-4">
+            <label className="text-lg">Tipo de vehículo:</label>
+            <select
+              className="p-2 border border-gray-300 text-black rounded w-32"
+              onChange={handleVehicleChange}
+              value={vehicle}
+            >
+              {prices.map((price) => (
+                <option key={price.id} value={price.vehiculo}>
+                  {price.vehiculo}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center space-x-9">
+            <label className="text-lg">Hora de inicio:</label>
+            <input
+              type="time"
+              className="p-2 border border-gray-300 text-black rounded w-32"
+              onChange={handleStartTimeChange}
+              value={startTime}
+            />
+          </div>
+          <div className="flex items-center space-x-14">
+            <label className="text-lg">Hora de fin:</label>
+            <input
+              type="time"
+              className="p-2 border border-gray-300 text-black rounded w-32"
+              onChange={handleEndTimeChange}
+              value={endTime}
+            />
+          </div>
+          <div className="flex items-center space-x-20">
+            <label className="text-lg">Dominio:</label>
+            <input
+              type="text"
+              className="p-2 border border-gray-300 text-black rounded w-32"
+              onChange={handleDomainChange}
+              value={domain}
+            />
+          </div>
         </div>
-        <div className="flex items-center space-x-9">
-          <label className="text-lg">Hora de inicio:</label>
-          <input
-            type="time"
-            className="p-2 border border-gray-300 text-black rounded"
-            onChange={handleStartTimeChange}
-            value={startTime}
-          />
-        </div>
-        <div className="flex items-center space-x-14">
-          <label className="text-lg">Hora de fin:</label>
-          <input
-            type="time"
-            className="p-2 border border-gray-300 text-black rounded"
-            onChange={handleEndTimeChange}
-            value={endTime}
-          />
-        </div>
-        <div className="flex items-center space-x-20">
-          <label className="text-lg">Dominio:</label>
-          <input
-            type="text"
-            className="p-2 border border-gray-300 text-black rounded"
-            onChange={handleDomainChange}
-            value={domain}
-          />
-        </div>
-      </div>
-      <div className="text-lg mt-6">{calculateTotal()}</div>
-      <button
-        className="bg-white text-black rounded-md w-32"
-        onClick={handlePrint}
-      >
-        Imprimir Ticket
-      </button>
+        <div className="text-lg mt-6">{calculateTotal()}</div>
+      </section>
+      <section>
+        <button
+          className="bg-white text-gray-800 rounded-md w-32 p-2 font-bold uppercase"
+          onClick={handlePrint}
+        >
+          Imprimir Ticket
+        </button>
+      </section>
     </div>
   );
 }
