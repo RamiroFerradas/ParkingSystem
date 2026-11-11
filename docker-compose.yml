@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-parking}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-parking_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-parking}
+      # Local timezone for logs/defaults; all timestamps are stored as timestamptz (UTC)
+      TZ: America/Argentina/Cordoba
+    ports:
+      # 5433 on host to avoid clashing with any local PostgreSQL
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-parking} -d ${POSTGRES_DB:-parking}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-parking_dev}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        pg_dump -h db -U $${POSTGRES_USER:-parking} -d $${POSTGRES_DB:-parking} -F c \
+          -f /backups/parking_$$(date +%Y%m%d_%H%M%S).dump && \
+        find /backups -name "*.dump" -mtime +30 -delete || true;
+        sleep 86400;
+      done'
+
+volumes:
+  pgdata:
