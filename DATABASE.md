@@ -147,10 +147,15 @@ CREATE UNIQUE INDEX uq_open_session_per_vehicle
 Índices operativos y estadísticos: `(status)`, `(entry_at)`, `(exit_at)`,
 `(vehicle_id)`, `(box_id, entry_at)`, `(opened_by, entry_at)`.
 
+### cash_shifts (turnos de caja — BR-022, cierre manual)
+| id | status open/closed | opened_by FK profiles | opened_at | closed_by FK profiles | closed_at | opening_notes / closing_notes | device_id |
+Índice único parcial: `(status) WHERE status='open'` → **un solo turno abierto a la vez**.
+
 ### payments
 `id`, `session_id` FK (unique — una estadía se paga una vez), `method_id`,
 `amount_charged_cents`, `amount_calculated_cents`, `discount_cents`,
-`surcharge_cents`, `paid_at`, `registered_by`, `device_id`.
+`surcharge_cents`, `paid_at`, `registered_by`, `device_id`,
+**`shift_id` FK cash_shifts** (atribución exacta al turno para el cierre de caja).
 Regla: no se puede cerrar dos veces (UNIQUE + RPC transaccional).
 
 ### ticket_sequences

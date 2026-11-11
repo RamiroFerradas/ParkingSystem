@@ -128,7 +128,7 @@ Toda resolución produce un **snapshot**:
 
 - **BR-OPEN-03 — Superposición de especiales.** ¿Gana la de mayor prioridad explícita o la más favorable al cliente? *Propuesta default: un solo ajuste, el de mayor prioridad explícita; empate → se audita.*
 - **BR-OPEN-09 — Recargos/descuentos.** ¿Quién autoriza y con qué topes? *(ligado a BR-OPEN-11)*
-- **BR-OPEN-10 — Turnos de caja.** ¿Apertura/cierre con arqueo por medio de pago? (hay gaveta conectada a la impresora RP-T001).
+- **BR-OPEN-10 → RESUELTA (12/11/2026, propietario/cliente).** **Turnos de caja manuales:** un empleado abre el turno (ej. Pedrito) y otro lo cierra (ej. Fulanito). El cierre diario ~19:00 es la costumbre del establecimiento, pero **el cierre es manual**, no automático. Se registra quién abrió, quién cerró, y horarios. Arqueo por medio de pago: se muestra el total cobrado por medio durante el turno (conciliación manual por ahora).
 - **BR-OPEN-11 — Anulaciones/ajustes.** ¿Qué rol autoriza? ¿Motivo obligatorio?
 - **BR-OPEN-12 (resto) — Configuración física.** Numeración real de boxes y sectores.
 - **BR-OPEN-13 — Vehículos sin patente.** ¿Placeholder permitido? *Propuesta default: sí, con marcador interno.*
