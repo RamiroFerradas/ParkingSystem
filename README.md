@@ -1,37 +1,35 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Parking System
 
-## Getting Started
+Sistema integral de gestión de estacionamiento (Córdoba, Argentina).
 
-First, run the development server:
+Reconstrucción desde cero sobre **Next.js 16 (App Router, Cache Components)**. El
+prototipo anterior está preservado sin modificaciones en `_legacy/` (ver
+`AUDIT.md` para la auditoría completa).
+
+## Stack
+
+- Next.js 16 · React 19 · TypeScript estricto (`noUncheckedIndexedAccess`)
+- Tailwind CSS 4
+- Supabase (Auth, PostgreSQL, Realtime, Storage) — integración por etapas
+- Arquitectura offline-first: servidor local PostgreSQL + Supabase Cloud +
+  motor de sincronización (Outbox/Inbox) — diseño en `ARCHITECTURE.md`
+
+## Scripts
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev      # servidor de desarrollo (Turbopack)
+pnpm build    # build de producción
+pnpm lint     # eslint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Configuración
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `next.config.ts` activa `cacheComponents: true`: los reads cacheables usan la
+  directiva `'use cache'` y los datos dinámicos van dentro de `<Suspense>`.
+- Path alias: `@/*` → `src/*`.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## Documentación
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
-# ParkingSystem
+- `AUDIT.md` — auditoría del prototipo existente (Etapa A)
+- `odd/tasks/auditoria-y-diseno.md` — seguimiento de etapas y decisiones
