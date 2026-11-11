@@ -10,6 +10,10 @@ export function proxy(request: NextRequest) {
   const hasSession = request.cookies.has(SESSION_COOKIE);
 
   if (!hasSession && pathname !== "/login") {
+    // Las API responden 401 JSON (sin redirect) para clientes no-navegador
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Sesión requerida" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (hasSession && pathname === "/login") {
