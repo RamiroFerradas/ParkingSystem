@@ -17,8 +17,11 @@ Repositorio: F:\PROGRAMACION\PROYECTOS\parking-system (sin git inicializado). Te
 
 - T1 · S1,S2,S3 · Auditoría del código existente (explore, read-only) · done (sesión 2026-11-11)
 - T2 · S1 · Escribir AUDIT.md (inline) · done (sesión 2026-11-11)
-- T3 · S3 · Presentar veredicto al usuario y decidir: evolucionar vs reconstruir · pending (bloquea Fase 2)
-- T4 · S4 · ARCHITECTURE.md, DATABASE.md, BUSINESS_RULES.md, IMPLEMENTATION_PLAN.md · pending (tras T3)
+- T3 · S3 · Presentar veredicto al usuario y decidir: evolucionar vs reconstruir · done (2026-11-11: usuario decidió reconstruir desde 0 con Next.js 16 + Cache Components)
+- T4 · S4 · ARCHITECTURE.md, DATABASE.md, BUSINESS_RULES.md, IMPLEMENTATION_PLAN.md · done (2026-11-11, Fase 2)
+- T6 · S5 · Presentar arquitectura propuesta al usuario · done (2026-11-11: 4 docs en raíz, reglas abiertas BR-OPEN listadas)
+- T7 · · Etapa C (infra local + auth + shell) · pending
+- T5 · · Scaffold Next.js 16.4.6 + React 19.2 + Tailwind 4 + cacheComponents/partialPrefetching; legacy a _legacy/ (git mv); build y lint verdes · done (commit c1d8b7b, rama rebuild/next-16)
 
 ## Log
 
