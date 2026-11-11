@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { query } from "@/lib/db/client";
+import { formatARS } from "@/lib/format";
 
 /**
  * Dashboard con datos reales de la base local. Cada bloque dinámico va en
@@ -95,14 +96,6 @@ async function TodayCards() {
       />
     </>
   );
-}
-
-function formatARS(cents: number): string {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
 }
 
 const TONES: Record<string, string> = {

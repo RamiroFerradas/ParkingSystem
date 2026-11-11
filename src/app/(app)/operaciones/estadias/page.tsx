@@ -1,0 +1,112 @@
+import Link from "next/link";
+import { query } from "@/lib/db/client";
+import { formatElapsed, formatARS, formatTime } from "@/lib/format";
+
+interface OpenStay {
+  id: string;
+  ticket_number: string;
+  plate: string | null;
+  vehicle_type_name: string;
+  box_number: string;
+  entry_at: string;
+  elapsed_minutes: number;
+  quote_cents: string;
+}
+
+async function loadOpenStays(): Promise<OpenStay[]> {
+  return query<OpenStay>(
+    `SELECT s.id,
+            s.ticket_number::text AS ticket_number,
+            v.plate,
+            vt.name AS vehicle_type_name,
+            b.number AS box_number,
+            s.entry_at,
+            GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int) AS elapsed_minutes,
+            (calc_fee_breakdown(s.vehicle_type_id,
+                GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int))
+             ->>'total_cents') AS quote_cents
+       FROM parking_sessions s
+       JOIN vehicles v       ON v.id = s.vehicle_id
+       JOIN vehicle_types vt ON vt.id = s.vehicle_type_id
+       JOIN parking_boxes b  ON b.id = s.box_id
+      WHERE s.status = 'open'
+      ORDER BY s.entry_at`,
+  );
+}
+
+export default function EstadiasActivasPage() {
+  return (
+    <div className="space-y-6">
+      <header className="flex items-baseline justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Estadías activas</h1>
+          <p className="text-sm text-neutral-500">
+            Vehículos dentro del estacionamiento en este momento
+          </p>
+        </div>
+        <Link
+          href="/operaciones/ingreso"
+          className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-900 hover:bg-white"
+        >
+          + Ingreso
+        </Link>
+      </header>
+
+      <OpenStaysTable />
+    </div>
+  );
+}
+
+async function OpenStaysTable() {
+  const stays = await loadOpenStays();
+
+  if (stays.length === 0) {
+    return (
+      <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-sm text-neutral-500">
+        No hay estadías activas.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-neutral-800">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-neutral-800 bg-neutral-900 text-left text-xs text-neutral-500">
+            <th className="px-4 py-2 font-medium">Ticket</th>
+            <th className="px-4 py-2 font-medium">Patente</th>
+            <th className="px-4 py-2 font-medium">Tipo</th>
+            <th className="px-4 py-2 font-medium">Box</th>
+            <th className="px-4 py-2 font-medium">Ingreso</th>
+            <th className="px-4 py-2 font-medium">Tiempo</th>
+            <th className="px-4 py-2 font-medium text-right">A cobrar</th>
+            <th className="px-4 py-2" aria-label="Acciones" />
+          </tr>
+        </thead>
+        <tbody>
+          {stays.map((s) => (
+            <tr key={s.id} className="border-b border-neutral-800 last:border-0">
+              <td className="px-4 py-2.5 tabular-nums text-neutral-400">#{s.ticket_number}</td>
+              <td className="px-4 py-2.5 font-semibold tracking-wide">{s.plate}</td>
+              <td className="px-4 py-2.5 text-neutral-300">{s.vehicle_type_name}</td>
+              <td className="px-4 py-2.5 text-neutral-300">{s.box_number}</td>
+              <td className="px-4 py-2.5 tabular-nums text-neutral-400">{formatTime(s.entry_at)}</td>
+              <td className="px-4 py-2.5 tabular-nums text-neutral-300">{formatElapsed(s.elapsed_minutes)}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums font-medium text-emerald-400">
+                {formatARS(s.quote_cents)}
+              </td>
+              <td className="px-4 py-2.5 text-right">
+                <Link
+                  href={`/operaciones/egreso?session=${s.id}`}
+                  className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
+                >
+                  Cobrar
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

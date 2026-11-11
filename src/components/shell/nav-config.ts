@@ -23,10 +23,10 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operaciones",
     items: [
-      { label: "Registrar ingreso", enabled: false, note: "Etapa D" },
-      { label: "Registrar egreso", enabled: false, note: "Etapa D" },
-      { label: "Estadías activas", enabled: false, note: "Etapa D" },
-      { label: "Historial", enabled: false, note: "Etapa D" },
+      { label: "Registrar ingreso", href: "/operaciones/ingreso", enabled: true },
+      { label: "Registrar egreso", href: "/operaciones/egreso", enabled: true },
+      { label: "Estadías activas", href: "/operaciones/estadias", enabled: true },
+      { label: "Historial", enabled: false, note: "Etapa D5" },
     ],
   },
   {
@@ -59,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Usuarios", enabled: false, note: "Etapa C3" },
       { label: "Medios de pago", enabled: false, note: "Etapa E" },
-      { label: "Turnos de caja", enabled: false, note: "Etapa D" },
+      { label: "Turnos de caja", href: "/administracion/turnos", enabled: true },
       { label: "Sincronización", enabled: false, note: "Etapa D6" },
       { label: "Auditoría", enabled: false, note: "Etapa H" },
     ],
