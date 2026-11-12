@@ -85,6 +85,22 @@ try {
   });
   ok("cobro 200", close.status === 200 && close.body.finalCents > 0, JSON.stringify(close.body));
 
+  // D6: el movimiento quedó encolado para el cloud (no se pierde sin Internet)
+  const obx = await dbRows(
+    `SELECT op, status FROM sync_outbox
+      WHERE entity_type = 'parking_session' AND entity_id = $1
+      ORDER BY created_at`,
+    [sessionId],
+  );
+  ok(
+    "outbox: ingreso+cobro encolados pendientes",
+    obx.length === 2 &&
+      obx[0].op === "insert" &&
+      obx[1].op === "update" &&
+      obx.every((r) => r.status === "pending"),
+    JSON.stringify(obx),
+  );
+
   // el pago quedó atribuido al turno
   const pay = await dbRows(`SELECT p.amount_charged_cents, p.shift_id FROM payments p WHERE p.session_id = $1`, [sessionId]);
   ok("payment atribuido al turno", pay[0]?.shift_id !== null, JSON.stringify(pay));
@@ -167,6 +183,7 @@ try {
 } finally {
   // limpieza
   try {
+    await dbRows(`DELETE FROM sync_outbox WHERE entity_type = 'parking_session' AND entity_id IN (SELECT id::text FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM payments WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM tariff_applications WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e'`, []);
