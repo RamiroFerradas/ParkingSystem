@@ -20,6 +20,9 @@ if (password.length < 8) {
 }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// DATABASE_SCHEMA (opcional, default public): ambiente destino por schema.
+const schema = process.env.DATABASE_SCHEMA ?? "public";
+if (schema !== "public") pool.on("connect", (c) => c.query(`SET search_path TO "${schema}", public`));
 
 try {
   const passwordHash = await hash(password); // Argon2id (default @node-rs/argon2)
