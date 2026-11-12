@@ -94,10 +94,74 @@ try {
   ok("turno cerrado", shiftClose.status === 200, JSON.stringify(shiftClose.body));
 
   // pantallas server-rendered
-  for (const path of ["/", "/operaciones/ingreso", "/operaciones/estadias", "/operaciones/egreso", "/administracion/turnos"]) {
+  for (const path of ["/", "/operaciones/ingreso", "/operaciones/estadias", "/operaciones/egreso", "/administracion/turnos", "/boxes/mapa", "/boxes/administracion", "/operaciones/historial"]) {
     const res = await fetch(BASE + path, { headers: { cookie: cookieHeader() } });
     ok(`GET ${path} 200`, res.status === 200, String(res.status));
   }
+
+  // historial con filtros server-side
+  const hist = await fetch(BASE + "/operaciones/historial?plate=EZE321&status=closed", {
+    headers: { cookie: cookieHeader() },
+  });
+  const histHtml = await hist.text();
+  ok("historial con filtros muestra la estadía", hist.status === 200 && histHtml.includes("EZE321"), String(hist.status));
+
+  // export CSV con el mismo filtro
+  const csv = await fetch(BASE + "/api/sessions/export?plate=EZE321", {
+    headers: { cookie: cookieHeader() },
+  });
+  const csvText = await csv.text();
+  ok(
+    "export CSV 200 con patente",
+    csv.status === 200 && csv.headers.get("content-type")?.includes("csv") && csvText.includes("EZE321"),
+    String(csv.status),
+  );
+
+  // administración de pisos: crear piso con boxes en lote (solo admin)
+  const floorName = `Piso E2E ${Date.now()}`;
+  const floorCreate = await api("/api/floors", {
+    method: "POST",
+    body: JSON.stringify({ name: floorName, boxCount: 3, prefix: "TST", sortOrder: 999 }),
+  });
+  ok("crear piso + 3 boxes 201", floorCreate.status === 201, JSON.stringify(floorCreate.body));
+  const floorId = floorCreate.body?.floor?.id;
+  const tstBoxes = await dbRows(
+    `SELECT id, number FROM parking_boxes WHERE floor_id = $1 ORDER BY number`,
+    [floorId],
+  );
+  ok("boxes TST-01..03 generados", tstBoxes.length === 3 && tstBoxes[0].number === "TST-01", JSON.stringify(tstBoxes));
+
+  const floorDup = await api("/api/floors", {
+    method: "POST",
+    body: JSON.stringify({ name: floorName, boxCount: 0 }),
+  });
+  ok("piso duplicado 409", floorDup.status === 409, String(floorDup.status));
+
+  const floorRename = await api("/api/floors", {
+    method: "PATCH",
+    body: JSON.stringify({ id: floorId, name: `Piso E2E renombrado ${Date.now()}` }),
+  });
+  ok("renombrar piso 200", floorRename.status === 200, JSON.stringify(floorRename.body));
+
+  // toggle de servicio sobre un box del nuevo piso
+  const tstBox = tstBoxes[0];
+  const tglOff = await api("/api/boxes/toggle", {
+    method: "POST",
+    body: JSON.stringify({ boxId: tstBox.id, serviceEnabled: false }),
+  });
+  ok("deshabilitar box 200", tglOff.status === 200 && tglOff.body.isServiceEnabled === false, JSON.stringify(tglOff.body));
+  const stOff = await dbRows(`SELECT status FROM box_status WHERE id = $1`, [tstBox.id]);
+  ok("box fuera de servicio en vista", stOff[0]?.status === "out_of_service", JSON.stringify(stOff));
+  await api("/api/boxes/toggle", { method: "POST", body: JSON.stringify({ boxId: tstBox.id, serviceEnabled: true }) });
+
+  // baja de box: desaparece de box_status
+  const boxOff = await api("/api/boxes", {
+    method: "PATCH",
+    body: JSON.stringify({ id: tstBox.id, isActive: false }),
+  });
+  ok("baja de box 200", boxOff.status === 200 && boxOff.body.box.is_active === false, JSON.stringify(boxOff.body));
+  const stGone = await dbRows(`SELECT id FROM box_status WHERE id = $1`, [tstBox.id]);
+  ok("box de baja fuera de la vista", stGone.length === 0, JSON.stringify(stGone));
 
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
@@ -107,6 +171,8 @@ try {
     await dbRows(`DELETE FROM tariff_applications WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e'`, []);
     await dbRows(`DELETE FROM vehicles WHERE plate = 'EZE321'`, []);
+    await dbRows(`DELETE FROM parking_boxes WHERE floor_id IN (SELECT id FROM parking_floors WHERE name LIKE 'Piso E2E%')`, []);
+    await dbRows(`DELETE FROM parking_floors WHERE name LIKE 'Piso E2E%'`, []);
   } catch (e) {
     console.error("cleanup:", e.message);
   }

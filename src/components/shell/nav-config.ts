@@ -26,14 +26,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Registrar ingreso", href: "/operaciones/ingreso", enabled: true },
       { label: "Registrar egreso", href: "/operaciones/egreso", enabled: true },
       { label: "Estadías activas", href: "/operaciones/estadias", enabled: true },
-      { label: "Historial", enabled: false, note: "Etapa D5" },
+      { label: "Historial", href: "/operaciones/historial", enabled: true },
     ],
   },
   {
     label: "Boxes",
     items: [
-      { label: "Mapa de boxes", enabled: false, note: "Etapa D" },
-      { label: "Administración", enabled: false, note: "Etapa D" },
+      { label: "Mapa de boxes", href: "/boxes/mapa", enabled: true },
+      { label: "Administración", href: "/boxes/administracion", enabled: true },
     ],
   },
   {
