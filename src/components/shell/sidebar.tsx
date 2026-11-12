@@ -35,10 +35,15 @@ export function Sidebar({ user }: { user: SessionUser }) {
                   <li key={item.label}>
                     <span
                       aria-disabled="true"
-                      title={`Disponible en próximas etapas (${item.note ?? "plan"})`}
-                      className="block cursor-not-allowed rounded-md px-2 py-1.5 text-sm text-neutral-600"
+                      className="group relative block cursor-not-allowed rounded-md px-2 py-1.5 text-sm text-neutral-600"
                     >
                       {item.label}
+                      <span
+                        role="tooltip"
+                        className="pointer-events-none absolute left-1 top-full z-20 mt-0.5 hidden w-max max-w-52 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-200 shadow-lg group-hover:block"
+                      >
+                        {item.note ? `Se habilita en la ${item.note}` : "Disponible próximamente"}
+                      </span>
                     </span>
                   </li>
                 ),
