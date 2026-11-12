@@ -179,10 +179,80 @@ try {
   const stGone = await dbRows(`SELECT id FROM box_status WHERE id = $1`, [tstBox.id]);
   ok("box de baja fuera de la vista", stGone.length === 0, JSON.stringify(stGone));
 
+  // ===== C3: administración de usuarios (el admin crea empleados desde la UI) =====
+  const newEmp = await api("/api/users", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "empleado-e2e@parking.local",
+      fullName: "Empleado E2E",
+      role: "employee",
+      password: "Empleado2026!",
+    }),
+  });
+  ok("alta de usuario 201", newEmp.status === 201 && newEmp.body.user?.id, JSON.stringify(newEmp.body));
+  if (newEmp.status !== 201 || !newEmp.body.user?.id) {
+    console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
+    process.exitCode = 1;
+    process.exit(1);
+  }
+
+  const dupUser = await api("/api/users", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "empleado-e2e@parking.local",
+      fullName: "Duplicado",
+      role: "employee",
+      password: "Empleado2026!",
+    }),
+  });
+  ok("email duplicado 409", dupUser.status === 409, JSON.stringify(dupUser.body));
+
+  const usersList = await api("/api/users");
+  ok(
+    "listado incluye el nuevo",
+    usersList.status === 200 && usersList.body.users?.some((u) => u.email === "empleado-e2e@parking.local"),
+    JSON.stringify(usersList.body?.users?.length),
+  );
+
+  // login del empleado recién creado
+  const empLogin = await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
+  });
+  ok("empleado puede loguearse", empLogin.status === 200, JSON.stringify(empLogin.body));
+
+  // volver a la sesión de admin (el login del empleado pisó la cookie del test)
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "admin@parking.local", password: "Parking2026!" }),
+  });
+
+  // desactivar → ya no puede loguearse
+  const empId = newEmp.body.user.id;
+  const deact = await api(`/api/users/${empId}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) });
+  ok("desactivar usuario 200", deact.status === 200, JSON.stringify(deact.body));
+  const empLoginOff = await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
+  });
+  ok("usuario inactivo no loguea", empLoginOff.status === 401, JSON.stringify(empLoginOff.body));
+
+  // reset de contraseña
+  const resetPw = await api(`/api/users/${empId}`, { method: "PATCH", body: JSON.stringify({ password: "Nueva2026!" }) });
+  ok("reset de contraseña 200", resetPw.status === 200, JSON.stringify(resetPw.body));
+
+  // último admin: no se puede desactivar
+  const adminRow = (await dbRows(`SELECT id FROM profiles WHERE role = 'admin' AND is_active ORDER BY created_at LIMIT 1`))[0];
+  const lastAdmin = await api(`/api/users/${adminRow.id}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) });
+  ok("no desactiva al último admin", lastAdmin.status === 400, JSON.stringify(lastAdmin.body));
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza
   try {
+    await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'profile' AND entity_id IN (SELECT id::text FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM profiles WHERE email = 'empleado-e2e@parking.local'`, []);
     await dbRows(`DELETE FROM sync_outbox WHERE entity_type = 'parking_session' AND entity_id IN (SELECT id::text FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM payments WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM tariff_applications WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);

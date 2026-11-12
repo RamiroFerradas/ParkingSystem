@@ -57,7 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Administración",
     items: [
-      { label: "Usuarios", enabled: false, note: "Etapa C3" },
+      { label: "Usuarios", href: "/administracion/usuarios", enabled: true },
       { label: "Medios de pago", enabled: false, note: "Etapa E" },
       { label: "Turnos de caja", href: "/administracion/turnos", enabled: true },
       { label: "Sincronización", enabled: false, note: "Etapa D6" },
