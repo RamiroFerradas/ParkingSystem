@@ -435,6 +435,13 @@ try {
     body: JSON.stringify({ id: "00000000-0000-0000-0000-000000000000", status: "printed" }),
   });
   ok("job inexistente 404", badJob.status === 404, JSON.stringify(badJob.body));
+  const csvRes = await fetch(BASE + "/api/reports/export?p=30", { headers: { cookie: cookieHeader() } });
+  const reportCsv = await csvRes.text();
+  ok(
+    "export CSV de reportes",
+    csvRes.status === 200 && reportCsv.startsWith("dia,cobros,recaudado_cents"),
+    reportCsv.split("\n")[1] ?? "",
+  );
 
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {

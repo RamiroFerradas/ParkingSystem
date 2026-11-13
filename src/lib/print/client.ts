@@ -42,17 +42,20 @@ async function fetchPayload(sessionId: string): Promise<SessionTicketPayload> {
 /** Desglose desde el snapshot tarifario (formato calc_fee_breakdown). */
 function breakdownLines(snapshot: Record<string, unknown> | null, baseCents: number) {
   const lines: { label: string; amountCents: number }[] = [];
-  if (snapshot) {
-    const items = (snapshot.items ?? snapshot.lines) as
-      | { label?: string; description?: string; amount_cents?: number; subtotal_cents?: number }[]
+  if (snapshot && typeof snapshot === "object") {
+    const block = snapshot.block as
+      | { name?: string; amount_cents?: number }
       | undefined;
-    if (Array.isArray(items)) {
-      for (const it of items) {
-        const amount = it.amount_cents ?? it.subtotal_cents;
-        if (typeof amount === "number") {
-          lines.push({ label: it.label ?? it.description ?? "-", amountCents: amount });
-        }
-      }
+    if (block && typeof block.amount_cents === "number") {
+      lines.push({ label: block.name ?? "Tarifa", amountCents: block.amount_cents });
+    }
+    const extraHours = Number(snapshot.extra_hours ?? 0);
+    const hourly = Number(snapshot.hourly_amount_cents ?? 0);
+    if (extraHours > 0 && hourly > 0) {
+      lines.push({
+        label: `Horas extra (${extraHours})`,
+        amountCents: extraHours * hourly,
+      });
     }
   }
   if (lines.length === 0 && baseCents > 0) {
