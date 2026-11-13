@@ -281,6 +281,107 @@ try {
   });
   ok("tipo en uso no se desactiva", deactUsed.status === 400, JSON.stringify(deactUsed.body));
 
+  // ===== E: tarifas (productos, especiales, medios de pago) =====
+  const autoId2 = autoType.id;
+  const newTariff = await api("/api/tariffs", {
+    method: "POST",
+    body: JSON.stringify({
+      code: "E2E",
+      name: "Tarifa E2E",
+      vehicleTypeId: autoId2,
+      durationMinutes: 60,
+      durationMode: "flat",
+      amountCents: 48000,
+    }),
+  });
+  ok("alta de tarifa 201", newTariff.status === 201 && newTariff.body.id, JSON.stringify(newTariff.body));
+  const dupTariff = await api("/api/tariffs", {
+    method: "POST",
+    body: JSON.stringify({
+      code: "E2E",
+      name: "Tarifa E2E dup",
+      vehicleTypeId: autoId2,
+      durationMinutes: 30,
+      amountCents: 1000,
+    }),
+  });
+  ok("tarifa código duplicado 409", dupTariff.status === 409, JSON.stringify(dupTariff.body));
+  const tariffList = await api("/api/tariffs");
+  ok(
+    "listado de tarifas incluye la nueva",
+    tariffList.status === 200 && tariffList.body.tariffs?.some((t) => t.code === "E2E"),
+    JSON.stringify(tariffList.body?.tariffs?.length),
+  );
+  const updTariff = await api("/api/tariffs", {
+    method: "PATCH",
+    body: JSON.stringify({ id: newTariff.body.id, amountCents: 50000 }),
+  });
+  ok("editar monto de tarifa 200", updTariff.status === 200, JSON.stringify(updTariff.body));
+  const deactTariff = await api("/api/tariffs", {
+    method: "PATCH",
+    body: JSON.stringify({ id: newTariff.body.id, isActive: false }),
+  });
+  ok("desactivar tarifa 200", deactTariff.status === 200, JSON.stringify(deactTariff.body));
+
+  const now = new Date();
+  const in1h = new Date(now.getTime() + 3600_000);
+  const iso = (d) => d.toISOString();
+  const badSpecial = await api("/api/special-tariffs", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "E2E inválido",
+      startsAt: iso(in1h),
+      endsAt: iso(now),
+      adjustmentType: "percent",
+      adjustmentValue: 50,
+    }),
+  });
+  ok("período especial con fechas invertidas 400", badSpecial.status === 400, JSON.stringify(badSpecial.body));
+  const badPct = await api("/api/special-tariffs", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "E2E inválido",
+      startsAt: iso(now),
+      endsAt: iso(in1h),
+      adjustmentType: "percent",
+      adjustmentValue: 150,
+    }),
+  });
+  ok("porcentaje fuera de rango 400", badPct.status === 400, JSON.stringify(badPct.body));
+  const newSpecial = await api("/api/special-tariffs", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "E2E feriado",
+      startsAt: iso(now),
+      endsAt: iso(in1h),
+      adjustmentType: "percent",
+      adjustmentValue: 50,
+      priority: 10,
+    }),
+  });
+  ok("crear período especial 201", newSpecial.status === 201 && newSpecial.body.id, JSON.stringify(newSpecial.body));
+  const cancelSpecial = await api("/api/special-tariffs", {
+    method: "PATCH",
+    body: JSON.stringify({ id: newSpecial.body.id, status: "cancelled" }),
+  });
+  ok("cancelar período especial 200", cancelSpecial.status === 200, JSON.stringify(cancelSpecial.body));
+
+  const newMethod = await api("/api/payment-methods", {
+    method: "POST",
+    body: JSON.stringify({ code: "E2E", name: "Medio E2E" }),
+  });
+  ok("alta de medio de pago 201", newMethod.status === 201 && newMethod.body.method?.id, JSON.stringify(newMethod.body));
+  const dupMethod = await api("/api/payment-methods", {
+    method: "POST",
+    body: JSON.stringify({ code: "E2E", name: "Medio E2E" }),
+  });
+  ok("medio duplicado 409", dupMethod.status === 409, JSON.stringify(dupMethod.body));
+  const renameMethod = await api("/api/payment-methods", {
+    method: "PATCH",
+    body: JSON.stringify({ id: newMethod.body.method.id, name: "Medio E2E renombrado" }),
+  });
+  ok("renombrar medio 200", renameMethod.status === 200 && renameMethod.body.method?.name === "Medio E2E renombrado", JSON.stringify(renameMethod.body));
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza
@@ -297,6 +398,12 @@ try {
     await dbRows(`DELETE FROM parking_floors WHERE name LIKE 'Piso E2E%'`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'vehicle_type' AND entity_id IN (SELECT id::text FROM vehicle_types WHERE code = 'CAMIONETA')`, []);
     await dbRows(`DELETE FROM vehicle_types WHERE code = 'CAMIONETA'`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'parking_tariff' AND entity_id IN (SELECT id::text FROM parking_tariffs WHERE code = 'E2E')`, []);
+    await dbRows(`DELETE FROM parking_tariffs WHERE code = 'E2E'`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'special_tariff_period' AND entity_id IN (SELECT id::text FROM special_tariff_periods WHERE name = 'E2E feriado')`, []);
+    await dbRows(`DELETE FROM special_tariff_periods WHERE name = 'E2E feriado'`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'payment_method' AND entity_id IN (SELECT id::text FROM payment_methods WHERE code = 'E2E')`, []);
+    await dbRows(`DELETE FROM payment_methods WHERE code = 'E2E'`, []);
   } catch (e) {
     console.error("cleanup:", e.message);
   }

@@ -46,8 +46,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Tarifas",
     items: [
-      { label: "Productos tarifarios", enabled: false, note: "Etapa E" },
-      { label: "Tarifas especiales", enabled: false, note: "Etapa E" },
+      { label: "Productos tarifarios", href: "/tarifas/productos", enabled: true },
+      { label: "Tarifas especiales", href: "/tarifas/especiales", enabled: true },
     ],
   },
   {
@@ -58,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Administración",
     items: [
       { label: "Usuarios", href: "/administracion/usuarios", enabled: true },
-      { label: "Medios de pago", enabled: false, note: "Etapa E" },
+      { label: "Medios de pago", href: "/administracion/medios-de-pago", enabled: true },
       { label: "Turnos de caja", href: "/administracion/turnos", enabled: true },
       { label: "Sincronización", enabled: false, note: "Etapa D6" },
       { label: "Auditoría", enabled: false, note: "Etapa H" },

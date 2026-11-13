@@ -1,0 +1,32 @@
+import { query } from "@/lib/db/client";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { redirect } from "next/navigation";
+import { MethodsManager } from "./methods-manager";
+
+export default async function MediosDePagoPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!(await hasPermission(user.role, "tariff.manage"))) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
+          <p className="mt-1 text-sm text-neutral-300">
+            Solo el administrador puede gestionar los medios de pago.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const methods = await query<{
+    id: string;
+    code: string;
+    name: string;
+    is_active: boolean;
+    sort_order: number;
+  }>(`SELECT id, code, name, is_active, sort_order FROM payment_methods ORDER BY sort_order, name`);
+
+  return <MethodsManager methods={methods} />;
+}
