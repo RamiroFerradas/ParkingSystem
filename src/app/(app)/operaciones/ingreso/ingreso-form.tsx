@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { printSessionTicket, PARKING_NAME } from "@/lib/print/client";
 
 interface Props {
   vehicleTypes: { id: string; name: string }[];
@@ -11,7 +12,14 @@ interface Props {
 type Status =
   | { step: "form" }
   | { step: "submitting" }
-  | { step: "done"; ticketNumber: number };
+  | {
+      step: "done";
+      ticketNumber: number;
+      sessionId: string;
+      plate: string;
+      vehicleTypeName: string;
+      boxNumber: string;
+    };
 
 export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   const [plate, setPlate] = useState("");
@@ -23,6 +31,9 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ step: "form" });
+  const [printState, setPrintState] = useState<
+    { state: "idle" } | { state: "printing" } | { state: "ok" } | { state: "fail"; message: string }
+  >({ state: "idle" });
 
   async function lookupPlate(raw: string) {
     const plate = raw.trim();
@@ -62,17 +73,51 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           notes,
         }),
       });
-      const data = (await res.json()) as { error?: string; ticketNumber?: number };
+      const data = (await res.json()) as { error?: string; ticketNumber?: number; sessionId?: string };
       if (!res.ok) {
         setError(data.error ?? "No se pudo registrar el ingreso");
         setStatus({ step: "form" });
         return;
       }
-      setStatus({ step: "done", ticketNumber: data.ticketNumber ?? 0 });
+      setStatus({
+        step: "done",
+        ticketNumber: data.ticketNumber ?? 0,
+        sessionId: data.sessionId ?? "",
+        plate: plate.trim().toUpperCase(),
+        vehicleTypeName: lookup.state === "found"
+          ? lookup.vehicleTypeName
+          : vehicleTypes.find((t) => t.id === vehicleTypeId)?.name ?? "",
+        boxNumber: availableBoxes.find((b) => b.id === boxId)?.number ?? "",
+      });
     } catch {
       setError("Servidor no disponible. Verificá la conexión al servidor local.");
       setStatus({ step: "form" });
     }
+  }
+
+  async function printEntryTicket() {
+    if (status.step !== "done") return;
+    setPrintState({ state: "printing" });
+    try {
+      // el job usa el payload server-side; el form solo dispara la impresión
+      await printSessionTicket(status.sessionId, "entry");
+      setPrintState({ state: "ok" });
+    } catch (err) {
+      setPrintState({
+        state: "fail",
+        message: err instanceof Error ? err.message : "Fallo de impresión",
+      });
+    }
+  }
+
+  function resetForm() {
+    setStatus({ step: "form" });
+    setPrintState({ state: "idle" });
+    setPlate("");
+    setLookup({ state: "idle" });
+    setVehicleTypeId("");
+    setBoxId("");
+    setNotes("");
   }
 
   if (status.step === "done") {
@@ -83,22 +128,35 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           Ticket {status.ticketNumber}
         </p>
         <p className="mt-1 text-xs text-neutral-400">
-          La impresión del ticket llega con la Etapa F (impresora térmica).
+          Box {status.boxNumber} · {status.plate}
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            setStatus({ step: "form" });
-            setPlate("");
-            setLookup({ state: "idle" });
-            setVehicleTypeId("");
-            setBoxId("");
-            setNotes("");
-          }}
-          className="mt-4 rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white"
-        >
-          Registrar otro ingreso
-        </button>
+        <div className="mt-4 flex justify-center gap-2">
+          {printState.state !== "ok" ? (
+            <button
+              type="button"
+              onClick={printEntryTicket}
+              disabled={printState.state === "printing"}
+              className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
+            >
+              {printState.state === "printing" ? "Imprimiendo..." : "Imprimir ticket"}
+            </button>
+          ) : (
+            <p className="text-sm text-emerald-400">Ticket impreso</p>
+          )}
+          <button
+            type="button"
+            onClick={resetForm}
+            className="rounded-md border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-800"
+          >
+            Registrar otro ingreso
+          </button>
+        </div>
+        {printState.state === "fail" && (
+          <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+            No se pudo imprimir ({printState.message}). El ticket quedó en la cola de
+            impresión para reintentar.
+          </p>
+        )}
       </div>
     );
   }

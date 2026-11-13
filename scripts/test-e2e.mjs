@@ -404,6 +404,38 @@ try {
     JSON.stringify(auditFiltered.body?.logs?.length),
   );
 
+  // ===== F: cola de impresión =====
+  const closedSession = (
+    await dbRows(`SELECT id::text AS id FROM parking_sessions WHERE (entry_notes = 'e2e' OR exit_notes = 'e2e') AND status = 'closed' LIMIT 1`)
+  )[0];
+  const newJob = await api("/api/print-jobs", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: closedSession.id, kind: "reprint" }),
+  });
+  ok("crear job de reimpresión 201", newJob.status === 201 && newJob.body.id, JSON.stringify(newJob.body));
+  const pendingJobs = await api("/api/print-jobs?status=pending");
+  ok(
+    "cola pendiente incluye el job",
+    pendingJobs.status === 200 && pendingJobs.body.jobs?.some((j) => j.id === newJob.body.id),
+    JSON.stringify(pendingJobs.body?.jobs?.length),
+  );
+  const ticketPayload = await api(`/api/sessions/${closedSession.id}`);
+  ok(
+    "payload de ticket 200",
+    ticketPayload.status === 200 && ticketPayload.body.session?.ticket_number && ticketPayload.body.session?.tariff_snapshot,
+    JSON.stringify(ticketPayload.body?.session?.ticket_number),
+  );
+  const markPrinted = await api("/api/print-jobs", {
+    method: "PATCH",
+    body: JSON.stringify({ id: newJob.body.id, status: "printed" }),
+  });
+  ok("marcar impreso 200", markPrinted.status === 200, JSON.stringify(markPrinted.body));
+  const badJob = await api("/api/print-jobs", {
+    method: "PATCH",
+    body: JSON.stringify({ id: "00000000-0000-0000-0000-000000000000", status: "printed" }),
+  });
+  ok("job inexistente 404", badJob.status === 404, JSON.stringify(badJob.body));
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza
@@ -412,6 +444,8 @@ try {
     await dbRows(`DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
     await dbRows(`DELETE FROM profiles WHERE email = 'empleado-e2e@parking.local'`, []);
     await dbRows(`DELETE FROM sync_outbox WHERE entity_type = 'parking_session' AND entity_id IN (SELECT id::text FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
+    await dbRows(`DELETE FROM print_jobs WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE action = 'ticket.reprint' AND entity_id IN (SELECT id::text FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM payments WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM tariff_applications WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e'`, []);

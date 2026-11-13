@@ -1,5 +1,6 @@
 import { query } from "@/lib/db/client";
 import { IngresoForm } from "./ingreso-form";
+import { PrintQueuePanel } from "./print-queue";
 
 interface IngresoData {
   vehicleTypes: { id: string; name: string }[];
@@ -33,6 +34,7 @@ export default async function IngresoPage() {
         vehicleTypes={data.vehicleTypes}
         availableBoxes={data.availableBoxes}
       />
+      <PrintQueuePanel />
     </div>
   );
 }

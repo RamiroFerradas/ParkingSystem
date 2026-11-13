@@ -1,0 +1,125 @@
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db/client";
+import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+
+/**
+ * Cola de impresión térmica (print_jobs).
+ * El reintento marca SIEMPRE el mismo job (nunca duplica registro, F2);
+ * una reimpresión manual desde historial crea un job nuevo y auditado.
+ */
+
+interface JobRow {
+  id: string;
+  session_id: string;
+  kind: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  ticket_number: string;
+  plate: string | null;
+}
+
+export async function GET(request: Request) {
+  const { user, error } = await requireUser();
+  if (error) return error;
+
+  const url = new URL(request.url);
+  const status = url.searchParams.get("status");
+  const allowed = ["pending", "printed", "error"];
+  if (status && !allowed.includes(status)) {
+    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+  }
+
+  try {
+    const rows = await query<JobRow>(
+      `SELECT j.id::text, j.session_id::text, j.kind::text AS kind, j.status::text AS status,
+              j.attempts, j.last_error, j.created_at::text,
+              s.ticket_number::text, v.plate
+         FROM print_jobs j
+         JOIN parking_sessions s ON s.id = j.session_id
+         JOIN vehicles v ON v.id = s.vehicle_id
+        WHERE ($1::print_job_status IS NULL OR j.status = $1::print_job_status)
+        ORDER BY j.created_at DESC
+        LIMIT 50`,
+      [status],
+    );
+    return NextResponse.json({ jobs: rows });
+  } catch (err) {
+    return rpcErrorResponse(err);
+  }
+}
+
+export async function POST(request: Request) {
+  const { user, error } = await requireUser();
+  if (error) return error;
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  }
+
+  const { sessionId, kind } = body;
+  if (typeof sessionId !== "string" || (kind !== "entry" && kind !== "reprint")) {
+    return NextResponse.json({ error: "Datos de impresión inválidos" }, { status: 400 });
+  }
+
+  try {
+    const rows = await query<{ id: string }>(
+      `INSERT INTO print_jobs (id, session_id, kind) VALUES (gen_random_uuid(), $1, $2::print_job_kind)
+       RETURNING id::text`,
+      [sessionId, kind],
+    );
+    if (kind === "reprint") {
+      await query(
+        `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id)
+         VALUES (gen_random_uuid(), $1, 'ticket.reprint', 'parking_session', $2)`,
+        [user.userId, sessionId],
+      );
+    }
+    return NextResponse.json({ ok: true, id: rows[0]!.id }, { status: 201 });
+  } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23503") {
+      return NextResponse.json({ error: "La estadía indicada no existe" }, { status: 400 });
+    }
+    return rpcErrorResponse(err);
+  }
+}
+
+export async function PATCH(request: Request) {
+  const { user, error } = await requireUser();
+  if (error) return error;
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  }
+
+  const { id, status, lastError } = body;
+  if (typeof id !== "string" || (status !== "printed" && status !== "error" && status !== "pending")) {
+    return NextResponse.json({ error: "Estado de impresión inválido" }, { status: 400 });
+  }
+
+  try {
+    const rows = await query<{ id: string }>(
+      `UPDATE print_jobs SET
+          status = $2::print_job_status,
+          attempts = attempts + 1,
+          last_error = CASE WHEN $2::print_job_status = 'error' THEN $3::text ELSE NULL END,
+          printed_at = CASE WHEN $2::print_job_status = 'printed' THEN now() ELSE printed_at END
+        WHERE id = $1
+        RETURNING id::text`,
+      [id, status, typeof lastError === "string" ? lastError.slice(0, 300) : null],
+    );
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "Job de impresión inexistente" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return rpcErrorResponse(err);
+  }
+}

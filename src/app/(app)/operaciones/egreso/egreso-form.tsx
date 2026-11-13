@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { printSessionTicket } from "@/lib/print/client";
 import { formatARS, formatElapsed } from "@/lib/format";
 
 export interface FeeBreakdown {
@@ -32,6 +34,9 @@ export function EgresoForm({ data }: { data: EgresoData }) {
   const [methodId, setMethodId] = useState("");
   const [notes, setNotes] = useState("");
   const [result, setResult] = useState<Result>({ state: "form" });
+  const [printState, setPrintState] = useState<
+    { state: "idle" } | { state: "printing" } | { state: "ok" } | { state: "fail"; message: string }
+  >({ state: "idle" });
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -64,6 +69,19 @@ export function EgresoForm({ data }: { data: EgresoData }) {
     }
   }
 
+  async function printReceipt() {
+    setPrintState({ state: "printing" });
+    try {
+      await printSessionTicket(data.sessionId, "exit");
+      setPrintState({ state: "ok" });
+    } catch (err) {
+      setPrintState({
+        state: "fail",
+        message: err instanceof Error ? err.message : "Fallo de impresión",
+      });
+    }
+  }
+
   if (result.state === "done") {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
@@ -74,6 +92,30 @@ export function EgresoForm({ data }: { data: EgresoData }) {
         <p className="mt-1 text-xs text-neutral-400">
           Ticket #{data.ticketNumber} · {formatElapsed(result.durationMinutes)} · Box liberado
         </p>
+        <div className="mt-4 flex justify-center gap-2">
+          {printState.state !== "ok" ? (
+            <button
+              type="button"
+              onClick={printReceipt}
+              disabled={printState.state === "printing"}
+              className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
+            >
+              {printState.state === "printing" ? "Imprimiendo..." : "Imprimir comprobante"}
+            </button>
+          ) : (
+            <p className="text-sm text-emerald-400">Comprobante impreso</p>
+          )}
+        </div>
+        {printState.state === "fail" && (
+          <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+            No se pudo imprimir ({printState.message}). El comprobante quedó en la cola
+            de impresión de{" "}
+            <Link href="/operaciones/ingreso" className="underline">
+              registrar ingreso
+            </Link>
+            .
+          </p>
+        )}
       </div>
     );
   }

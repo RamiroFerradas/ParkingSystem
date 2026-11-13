@@ -10,6 +10,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { formatARS, formatDate, formatElapsed, formatTime } from "@/lib/format";
+import { printSessionTicket } from "@/lib/print/client";
 
 export interface HistorialRow {
   id: string;
@@ -34,6 +35,24 @@ const col = createColumnHelper<HistorialRow>();
 
 export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "entry_at", desc: true }]);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
+
+  async function reprint(row: HistorialRow) {
+    setPrintingId(row.id);
+    setPrintError(null);
+    try {
+      await printSessionTicket(row.id, "reprint");
+    } catch (err) {
+      setPrintError(
+        err instanceof Error
+          ? `No se pudo reimprimir el ticket ${row.ticket_number}: ${err.message}`
+          : `No se pudo reimprimir el ticket ${row.ticket_number}`,
+      );
+    } finally {
+      setPrintingId(null);
+    }
+  }
 
   const columns = useMemo(
     () => [
@@ -108,6 +127,20 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
           );
         },
       }),
+      col.display({
+        id: "actions",
+        header: "",
+        cell: (info) => (
+          <button
+            type="button"
+            disabled={printingId === info.row.original.id}
+            onClick={() => reprint(info.row.original)}
+            className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-40"
+          >
+            {printingId === info.row.original.id ? "..." : "Reimprimir"}
+          </button>
+        ),
+      }),
     ],
     [],
   );
@@ -130,7 +163,13 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-neutral-800">
+    <div className="space-y-2">
+      {printError && (
+        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+          {printError}
+        </p>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-neutral-800">
       <table className="w-full text-sm">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -167,6 +206,7 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
