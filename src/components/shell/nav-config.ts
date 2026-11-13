@@ -39,8 +39,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Vehículos",
     items: [
-      { label: "Listado", enabled: false, note: "Etapa D" },
-      { label: "Tipos de vehículos", enabled: false, note: "Etapa D" },
+      { label: "Listado", href: "/vehiculos", enabled: true },
+      { label: "Tipos de vehículos", href: "/vehiculos/tipos", enabled: true },
     ],
   },
   {

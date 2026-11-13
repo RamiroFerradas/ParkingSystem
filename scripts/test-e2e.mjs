@@ -246,6 +246,41 @@ try {
   const lastAdmin = await api(`/api/users/${adminRow.id}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) });
   ok("no desactiva al último admin", lastAdmin.status === 400, JSON.stringify(lastAdmin.body));
 
+  // ===== D1: vehículos (listado + tipos) =====
+  const vSearch = await api("/api/vehicles?q=EZE321");
+  ok(
+    "listado por patente",
+    vSearch.status === 200 && vSearch.body.vehicles?.some((v) => v.plate === "EZE321"),
+    JSON.stringify(vSearch.body?.vehicles?.length),
+  );
+  // EZE321 se crea en el flujo de ingreso de este mismo test (con estadía ya cerrada)
+  const vRow = vSearch.body.vehicles?.find((v) => v.plate === "EZE321");
+  ok("contador de estadías", vRow && vRow.sessions_count >= 1, JSON.stringify(vRow?.sessions_count));
+
+  const newType = await api("/api/vehicle-types", {
+    method: "POST",
+    body: JSON.stringify({ code: "CAMIONETA", name: "Camioneta", sortOrder: 9 }),
+  });
+  ok("alta de tipo 201", newType.status === 201 && newType.body.type?.id, JSON.stringify(newType.body));
+  const dupType = await api("/api/vehicle-types", {
+    method: "POST",
+    body: JSON.stringify({ code: "CAMIONETA", name: "Camioneta", sortOrder: 9 }),
+  });
+  ok("tipo duplicado 409", dupType.status === 409, JSON.stringify(dupType.body));
+  // el tipo recién creado no tiene vehículos → se puede desactivar
+  const deactType = await api("/api/vehicle-types", {
+    method: "PATCH",
+    body: JSON.stringify({ id: newType.body.type.id, isActive: false }),
+  });
+  ok("desactivar tipo sin uso 200", deactType.status === 200 && deactType.body.type.is_active === false, JSON.stringify(deactType.body));
+  // un tipo en uso no se puede desactivar (AUTO tiene vehículos)
+  const autoType = (await dbRows(`SELECT id FROM vehicle_types WHERE code = 'AUTO'`))[0];
+  const deactUsed = await api("/api/vehicle-types", {
+    method: "PATCH",
+    body: JSON.stringify({ id: autoType.id, isActive: false }),
+  });
+  ok("tipo en uso no se desactiva", deactUsed.status === 400, JSON.stringify(deactUsed.body));
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza
@@ -260,6 +295,8 @@ try {
     await dbRows(`DELETE FROM vehicles WHERE plate = 'EZE321'`, []);
     await dbRows(`DELETE FROM parking_boxes WHERE floor_id IN (SELECT id FROM parking_floors WHERE name LIKE 'Piso E2E%')`, []);
     await dbRows(`DELETE FROM parking_floors WHERE name LIKE 'Piso E2E%'`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'vehicle_type' AND entity_id IN (SELECT id::text FROM vehicle_types WHERE code = 'CAMIONETA')`, []);
+    await dbRows(`DELETE FROM vehicle_types WHERE code = 'CAMIONETA'`, []);
   } catch (e) {
     console.error("cleanup:", e.message);
   }
