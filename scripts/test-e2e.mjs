@@ -382,6 +382,28 @@ try {
   });
   ok("renombrar medio 200", renameMethod.status === 200 && renameMethod.body.method?.name === "Medio E2E renombrado", JSON.stringify(renameMethod.body));
 
+  // ===== D6/G/H: sincronización, reportes, auditoría =====
+  const syncStatus = await api("/api/sync/status");
+  ok("estado de sincronización 200", syncStatus.status === 200 && Array.isArray(syncStatus.body.byStatus) && Array.isArray(syncStatus.body.recentRuns), JSON.stringify(syncStatus.body?.byStatus));
+  const reportSummary = await api("/api/reports/summary?days=30");
+  ok(
+    "resumen de reportes 200",
+    reportSummary.status === 200 && Array.isArray(reportSummary.body.daily) && Array.isArray(reportSummary.body.byMethod),
+    JSON.stringify(reportSummary.body?.totals),
+  );
+  const auditList = await api("/api/audit-logs?limit=5");
+  ok(
+    "auditoría lista eventos",
+    auditList.status === 200 && Array.isArray(auditList.body.logs) && auditList.body.logs.length > 0,
+    JSON.stringify(auditList.body?.logs?.length),
+  );
+  const auditFiltered = await api("/api/audit-logs?action=payment_method.create&limit=5");
+  ok(
+    "auditoría filtra por acción",
+    auditFiltered.status === 200 && auditFiltered.body.logs.every((l) => l.action.includes("payment_method")),
+    JSON.stringify(auditFiltered.body?.logs?.length),
+  );
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza

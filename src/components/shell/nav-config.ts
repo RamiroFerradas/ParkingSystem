@@ -52,7 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Estadísticas",
-    items: [{ label: "Reportes", enabled: false, note: "Etapa G" }],
+    items: [{ label: "Reportes", href: "/reportes", enabled: true }],
   },
   {
     label: "Administración",
@@ -60,8 +60,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Usuarios", href: "/administracion/usuarios", enabled: true },
       { label: "Medios de pago", href: "/administracion/medios-de-pago", enabled: true },
       { label: "Turnos de caja", href: "/administracion/turnos", enabled: true },
-      { label: "Sincronización", enabled: false, note: "Etapa D6" },
-      { label: "Auditoría", enabled: false, note: "Etapa H" },
+      { label: "Sincronización", href: "/administracion/sincronizacion", enabled: true },
+      { label: "Auditoría", href: "/administracion/auditoria", enabled: true },
     ],
   },
 ];
