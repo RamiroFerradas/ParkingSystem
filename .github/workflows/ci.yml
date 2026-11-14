@@ -1,0 +1,85 @@
+# CI: build + smoke contra Postgres (test-rpcs, test-sync) + e2e completa.
+# Espeja el flujo local: migraciones 001..008 sobre Postgres 16, build next,
+# servidor en :3000 y suite e2e contra BASE=http://localhost:3000.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: parking
+          POSTGRES_PASSWORD: parking_dev
+          POSTGRES_DB: parking
+          TZ: America/Argentina/Cordoba
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U parking -d parking"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+
+    env:
+      DATABASE_URL: postgres://parking:parking_dev@localhost:5433/parking
+      AUTH_SECRET: ci-test-secret-not-for-production
+      BASE: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Aplicar migraciones 001..008
+        run: |
+          node -e '
+            const { Client } = require("pg");
+            const { readdirSync, readFileSync } = require("fs");
+            (async () => {
+              const c = new Client({ connectionString: process.env.DATABASE_URL });
+              await c.connect();
+              const files = readdirSync("db/migrations").filter(f => /^\d{3}_.*\.sql$/.test(f)).sort();
+              for (const f of files) {
+                await c.query(readFileSync(`db/migrations/${f}`, "utf8"));
+                console.log("aplicada", f);
+              }
+              await c.end();
+            })().catch(e => { console.error(e); process.exit(1); });
+          '
+
+      - name: RPCs smoke (D)
+        run: node scripts/test-rpcs.mjs
+
+      - name: Sync worker smoke (D6)
+        run: node scripts/test-sync.mjs
+
+      - name: Build
+        run: pnpm build
+
+      - name: Servidor en :3000
+        run: |
+          pnpm start &
+          for i in $(seq 1 30); do
+            sleep 2
+            if curl -sf http://localhost:3000/login > /dev/null; then echo listo; break; fi
+          done
+
+      - name: e2e (71 checks)
+        run: node scripts/test-e2e.mjs
