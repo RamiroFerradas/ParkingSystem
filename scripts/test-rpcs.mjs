@@ -40,6 +40,26 @@ async function cleanupFixtures(db) {
   await db(`DELETE FROM payments WHERE session_id IN (${sessionIds})`);
   await db(`DELETE FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%'`);
   await db(`DELETE FROM vehicles WHERE plate IN ('TESTD1','TESTD2','TESTD3')`);
+  await db(`DELETE FROM audit_logs WHERE actor_id IN (SELECT id FROM profiles WHERE full_name = 'Admin Smoke')`);
+  await db(`DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE full_name = 'Admin Smoke')`);
+  await db(`DELETE FROM profiles WHERE full_name = 'Admin Smoke'`);
+}
+
+// Usuario admin de prueba propio (la DB de CI no tiene seed de usuarios).
+// Se borra en finally junto con el resto de fixtures.
+async function createTestAdmin(db) {
+  const { hash } = await import("@node-rs/argon2");
+  const pwHash = await hash("smoke-not-used-" + crypto.randomUUID());
+  const { rows: [admin] } = await db(
+    `INSERT INTO profiles (id, full_name, role, is_active, email)
+     VALUES (gen_random_uuid(), 'Admin Smoke', 'admin', true, 'smoke-admin-' || gen_random_uuid() || '@test.local')
+     RETURNING id`,
+  );
+  await db(`INSERT INTO auth_credentials (user_id, password_hash) VALUES ($1, $2)`, [
+    admin.id,
+    pwHash,
+  ]);
+  return admin.id;
 }
 
 try {
@@ -49,10 +69,8 @@ try {
   const util = types.find((t) => t.code === "UTILITARIO");
   const { rows: boxes } = await db("SELECT id, number FROM parking_boxes ORDER BY number LIMIT 2");
   const { rows: methods } = await db("SELECT id FROM payment_methods WHERE code = 'EFECTIVO'");
-  const { rows: admins } = await db("SELECT id FROM profiles WHERE email = 'admin@parking.local'");
-  const actor = admins[0].id;
-
   await cleanupFixtures(db);
+  const actor = await createTestAdmin(db);
 
 
   // --- D3: apertura ---

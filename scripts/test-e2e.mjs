@@ -36,11 +36,49 @@ const dbRows = async (sql, params) => {
   }
 };
 
+// Usuario admin de prueba (CI no tiene seed de usuarios; también evita
+// depender de una credencial estática en el repo).
+const smokeEmail = `smoke-admin-${Date.now()}@test.local`;
+const smokePassword = "smoke-" + crypto.randomUUID();
+async function createSmokeAdmin() {
+  const { hash } = await import("@node-rs/argon2");
+  const pwHash = await hash(smokePassword);
+  const rows = await dbRows(
+    `INSERT INTO profiles (id, full_name, role, is_active, email)
+     VALUES (gen_random_uuid(), 'Admin E2E', 'admin', true, $1) RETURNING id`,
+    [smokeEmail],
+  );
+  await dbRows(`INSERT INTO auth_credentials (user_id, password_hash) VALUES ($1, $2)`, [
+    rows[0].id,
+    pwHash,
+  ]);
+}
+async function deleteSmokeAdmin() {
+  await dbRows(
+    `DELETE FROM payments WHERE shift_id IN (SELECT id FROM cash_shifts WHERE opened_by IN (SELECT id FROM profiles WHERE email = $1))`,
+    [smokeEmail],
+  );
+  await dbRows(
+    `DELETE FROM cash_shifts WHERE opened_by IN (SELECT id FROM profiles WHERE email = $1)`,
+    [smokeEmail],
+  );
+  await dbRows(
+    `DELETE FROM audit_logs WHERE actor_id IN (SELECT id FROM profiles WHERE email = $1)`,
+    [smokeEmail],
+  );
+  await dbRows(
+    `DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE email = $1)`,
+    [smokeEmail],
+  );
+  await dbRows(`DELETE FROM profiles WHERE email = $1`, [smokeEmail]);
+}
+
 try {
   // login
+  await createSmokeAdmin();
   const login = await api("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "admin@parking.local", password: "Parking2026!" }),
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
   });
   ok("login 200", login.status === 200, JSON.stringify(login));
 
@@ -224,7 +262,7 @@ try {
   // volver a la sesión de admin (el login del empleado pisó la cookie del test)
   await api("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "admin@parking.local", password: "Parking2026!" }),
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
   });
 
   // desactivar → ya no puede loguearse
@@ -241,10 +279,14 @@ try {
   const resetPw = await api(`/api/users/${empId}`, { method: "PATCH", body: JSON.stringify({ password: "Nueva2026!" }) });
   ok("reset de contraseña 200", resetPw.status === 200, JSON.stringify(resetPw.body));
 
-  // último admin: no se puede desactivar
-  const adminRow = (await dbRows(`SELECT id FROM profiles WHERE role = 'admin' AND is_active ORDER BY created_at LIMIT 1`))[0];
-  const lastAdmin = await api(`/api/users/${adminRow.id}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) });
+  // último admin: no se puede desactivar al único admin activo.
+  // Se baja al resto de los admins por SQL (temporal), se intenta desactivar
+  // al admin de la sesión y se reactivan.
+  const meRow = (await dbRows(`SELECT id FROM profiles WHERE email = $1`, [smokeEmail]))[0];
+  await dbRows(`UPDATE profiles SET is_active = false WHERE role = 'admin' AND email <> $1`, [smokeEmail]);
+  const lastAdmin = await api(`/api/users/${meRow.id}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) });
   ok("no desactiva al último admin", lastAdmin.status === 400, JSON.stringify(lastAdmin.body));
+  await dbRows(`UPDATE profiles SET is_active = true WHERE role = 'admin' AND email <> $1`, [smokeEmail]);
 
   // ===== D1: vehículos (listado + tipos) =====
   const vSearch = await api("/api/vehicles?q=EZE321");
@@ -467,6 +509,7 @@ try {
     await dbRows(`DELETE FROM special_tariff_periods WHERE name = 'E2E feriado'`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'payment_method' AND entity_id IN (SELECT id::text FROM payment_methods WHERE code = 'E2E')`, []);
     await dbRows(`DELETE FROM payment_methods WHERE code = 'E2E'`, []);
+    await deleteSmokeAdmin();
   } catch (e) {
     console.error("cleanup:", e.message);
   }
