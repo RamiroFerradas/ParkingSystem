@@ -27,6 +27,21 @@ async function expectError(name, fn, needle) {
 const db = (text, params) => pool.query(text, params);
 const rid = () => crypto.randomUUID();
 
+// Borra fixtures TEST-D (estadías de prueba del smoke) y sus dependencias,
+// incluidas las filas de sync_outbox que el trigger genera por cada cambio.
+async function cleanupFixtures(db) {
+  const sessionIds = `SELECT id FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%'`;
+  await db(`DELETE FROM sync_outbox WHERE (entity_type = 'parking_session' AND entity_id::uuid IN (${sessionIds}))
+    OR (entity_type = 'payment' AND entity_id::uuid IN (SELECT id FROM payments WHERE session_id IN (${sessionIds})))
+    OR (entity_type = 'tariff_application' AND entity_id::uuid IN (SELECT id FROM tariff_applications WHERE session_id IN (${sessionIds})))`);
+  await db(
+    `DELETE FROM tariff_applications WHERE session_id IN (${sessionIds})`,
+  );
+  await db(`DELETE FROM payments WHERE session_id IN (${sessionIds})`);
+  await db(`DELETE FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%'`);
+  await db(`DELETE FROM vehicles WHERE plate IN ('TESTD1','TESTD2','TESTD3')`);
+}
+
 try {
   // ids de referencia
   const { rows: types } = await db("SELECT id, code FROM vehicle_types ORDER BY code");
@@ -37,15 +52,8 @@ try {
   const { rows: admins } = await db("SELECT id FROM profiles WHERE email = 'admin@parking.local'");
   const actor = admins[0].id;
 
-  // Limpieza de estadías de prueba previas
-  await db(
-    `DELETE FROM tariff_applications WHERE session_id IN (SELECT id FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%')`,
-  );
-  await db(
-    `DELETE FROM payments WHERE session_id IN (SELECT id FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%')`,
-  );
-  await db(`DELETE FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%'`);
-  await db(`DELETE FROM vehicles WHERE plate IN ('TESTD1','TESTD2','TESTD3')`);
+  await cleanupFixtures(db);
+
 
   // --- D3: apertura ---
   const s1 = rid();
@@ -100,6 +108,11 @@ try {
 
   console.log(failures === 0 ? "\nTODOS LOS CHECKS OK" : `\n${failures} CHECKS FALLARON`);
 } finally {
+  try {
+    await cleanupFixtures((text) => pool.query(text));
+  } catch (err) {
+    console.error(`✗ cleanup fixtures: ${err.message}`);
+  }
   await pool.end();
 }
 process.exitCode = failures === 0 ? 0 : 1;
