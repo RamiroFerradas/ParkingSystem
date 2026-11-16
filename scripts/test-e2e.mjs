@@ -485,6 +485,39 @@ try {
     reportCsv.split("\n")[1] ?? "",
   );
 
+  // ===== Dashboard: mini mapa de boxes =====
+  const dashRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const dashHtml = await dashRes.text();
+  const gridIdx = dashHtml.indexOf('data-box-grid-mini');
+  const activeBoxes = await dbRows(
+    `SELECT count(*) n FROM parking_boxes WHERE is_active`,
+    [],
+  );
+  // El HTML trae además el payload RSC (que repite los strings escapados);
+  // contar solo celdas de markup: 'data-box-cell' rodeado de espacios, sin
+  // comillas alrededor (en flight aparece como "data-box-cell").
+  const cells = gridIdx >= 0 ? (dashHtml.match(/(?<= )data-box-cell(?=="true")/g) ?? []).length : 0;
+  ok(
+    "dashboard: mini mapa de boxes con cuadritos",
+    gridIdx >= 0 && cells === Number(activeBoxes[0].n),
+    `cells=${cells} activos=${activeBoxes[0].n}`,
+  );
+
+  // Sidebar: ítem de la sección actual marcado (aria-current="page").
+  // React puede reordenar atributos: verificar dentro del mismo <a>.
+  const repRes = await fetch(BASE + "/reportes", { headers: { cookie: cookieHeader() } });
+  const repHtml = await repRes.text();
+  const anchors = (repHtml.match(/<a [^>]+>/g) ?? []).filter((a) =>
+    a.includes('aria-current="page"'),
+  );
+  ok(
+    "sidebar: seccion actual marcada en reportes",
+    repRes.status === 200 &&
+      anchors.length === 1 &&
+      anchors[0].includes('href="/reportes"'),
+    `current=${anchors.length}`,
+  );
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza

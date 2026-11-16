@@ -31,6 +31,12 @@ export default function DashboardPage() {
         </Suspense>
       </section>
 
+      <section aria-label="Mapa compacto de boxes" className="grid grid-cols-1 gap-4">
+        <Suspense fallback={<SkeletonCard />}>
+          <BoxGridMini />
+        </Suspense>
+      </section>
+
       <section aria-label="Operación de hoy" className="grid grid-cols-3 gap-4">
         <Suspense
           fallback={
@@ -207,6 +213,83 @@ async function PendingPrints() {
       <p className="mt-1 text-xs text-neutral-500">
         {total > 0 ? "Reintentá desde Registrar ingreso." : "Todo impreso."}
       </p>
+    </div>
+  );
+}
+
+const BOX_TONES: Record<string, string> = {
+  occupied: "bg-red-500/80",
+  available: "bg-emerald-500/70",
+  out_of_service: "bg-neutral-700",
+};
+
+async function BoxGridMini() {
+  const rows = await query<{
+    number: string;
+    floor_name: string;
+    floor_sort: number;
+    status: string;
+    plate: string | null;
+  }>(
+    `SELECT number, floor_name, floor_sort, status, plate
+       FROM box_status
+      ORDER BY floor_sort, number`,
+  );
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+        <p className="text-xs font-medium text-neutral-500">Mapa de boxes</p>
+        <p className="mt-2 text-sm text-neutral-500">
+          Sin boxes cargados todavía. Crealos desde Administración.
+        </p>
+      </div>
+    );
+  }
+  const floors = new Map<string, typeof rows>();
+  for (const box of rows) {
+    const list = floors.get(box.floor_name) ?? [];
+    list.push(box);
+    floors.set(box.floor_name, list);
+  }
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs font-medium text-neutral-500">Mapa de boxes</p>
+        <p className="flex gap-3 text-[11px] text-neutral-500">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500/80" /> ocupado
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500/70" /> libre
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-neutral-700" /> fuera de servicio
+          </span>
+        </p>
+      </div>
+      <div data-box-grid-mini className="mt-3 space-y-3">
+        {[...floors.entries()].map(([floorName, boxes]) => (
+          <div key={floorName}>
+            <p className="text-[11px] font-medium text-neutral-600">{floorName}</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {boxes.map((box) => (
+                <span
+                  key={box.number}
+                  data-box-cell
+                  title={`Box ${box.number} · ${
+                    box.status === "occupied"
+                      ? `ocupado${box.plate ? ` (${box.plate})` : ""}`
+                      : box.status === "available"
+                        ? "libre"
+                        : "fuera de servicio"
+                  }`}
+                  className={`inline-block h-4 w-4 rounded-sm ${BOX_TONES[box.status] ?? BOX_TONES.out_of_service}`}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
