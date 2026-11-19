@@ -293,8 +293,8 @@ try {
   const mapaAdmin = await fetch(BASE + "/boxes/mapa", { headers: { cookie: cookieHeader() } });
   const mapaAdminHtml = await mapaAdmin.text();
   ok(
-    "mapa: modo edición para admin",
-    mapaAdmin.status === 200 && mapaAdminHtml.includes("data-box-edit-toggle"),
+    "mapa: boxes editables para admin",
+    mapaAdmin.status === 200 && mapaAdminHtml.includes("data-box-editable"),
     `status=${mapaAdmin.status}`,
   );
 
@@ -380,8 +380,8 @@ try {
   const empMapaRes = await fetch(BASE + "/boxes/mapa", { headers: { cookie: cookieHeader() } });
   const empMapaHtml = await empMapaRes.text();
   ok(
-    "mapa: empleado sin modo edición",
-    empMapaRes.status === 200 && !empMapaHtml.includes("data-box-edit-toggle"),
+    "mapa: empleado sin edición",
+    empMapaRes.status === 200 && !empMapaHtml.includes("data-box-editable"),
     `status=${empMapaRes.status}`,
   );
 

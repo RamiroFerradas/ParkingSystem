@@ -17,7 +17,6 @@ interface BoxMapBoardProps {
 }
 
 export function BoxMapBoard({ floors, floorOptions, canManage }: BoxMapBoardProps) {
-  const [editMode, setEditMode] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -25,41 +24,23 @@ export function BoxMapBoard({ floors, floorOptions, canManage }: BoxMapBoardProp
     [floors, selectedId],
   );
 
-  function toggleEditMode() {
-    setEditMode((current) => !current);
-    setSelectedId(null);
-  }
+  const inactiveCount = useMemo(
+    () => floors.flatMap((floor) => floor.boxes).filter((box) => !box.isActive).length,
+    [floors],
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-box-editable={canManage ? "true" : undefined}>
       {canManage && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-neutral-200">Administrar en el mapa</p>
-            <p className="text-xs text-neutral-500">
-              {editMode
-                ? "Tocá un box para editar número, sector, piso o estado."
-                : "Activá el modo edición para modificar boxes sin salir del mapa."}
-            </p>
-          </div>
-          <button
-            type="button"
-            data-box-edit-toggle
-            data-edit-mode={editMode ? "on" : "off"}
-            onClick={toggleEditMode}
-            className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
-              editMode
-                ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-500"
-                : "border-neutral-700 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-            }`}
-          >
-            {editMode ? "Salir de edición" : "Modo edición"}
-          </button>
-        </div>
+        <p className="text-xs text-neutral-500">
+          Tocá un box para editar número, sector, piso o estado.
+          {inactiveCount > 0 &&
+            ` Hay ${inactiveCount} ${inactiveCount === 1 ? "box dado de baja" : "boxes dados de baja"}.`}
+        </p>
       )}
 
       {floors.map((floor) => {
-        const visible = editMode ? floor.boxes : floor.boxes.filter((box) => box.isActive);
+        const visible = canManage ? floor.boxes : floor.boxes.filter((box) => box.isActive);
         if (visible.length === 0) return null;
 
         return (
@@ -75,7 +56,7 @@ export function BoxMapBoard({ floors, floorOptions, canManage }: BoxMapBoardProp
                 <BoxTile
                   key={box.id}
                   box={box}
-                  editMode={editMode}
+                  editable={canManage}
                   selected={box.id === selectedId}
                   onSelect={() => setSelectedId(box.id)}
                 />

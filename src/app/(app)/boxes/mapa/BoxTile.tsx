@@ -21,7 +21,7 @@ export interface BoardBox {
 
 interface BoxTileProps {
   box: BoardBox;
-  editMode: boolean;
+  editable: boolean;
   selected: boolean;
   onSelect: () => void;
 }
@@ -41,7 +41,7 @@ const STATUS_STYLE: Record<BoxTileStatus, string> = {
 const INACTIVE_STYLE =
   "border-dashed border-neutral-700 bg-neutral-900/40 text-neutral-500";
 
-export function BoxTile({ box, editMode, selected, onSelect }: BoxTileProps) {
+export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
   const { number, sector, status, plate, entryAt, vehicleTypeName, ticketNumber, elapsedLabel, isActive } = box;
   const occupied = status === "occupied";
 
@@ -50,11 +50,11 @@ export function BoxTile({ box, editMode, selected, onSelect }: BoxTileProps) {
       data-box-tile
       data-status={status}
       data-inactive={isActive ? undefined : "true"}
-      role={editMode ? "button" : undefined}
-      tabIndex={editMode ? 0 : undefined}
-      onClick={editMode ? onSelect : undefined}
+      role={editable ? "button" : undefined}
+      tabIndex={editable ? 0 : undefined}
+      onClick={editable ? onSelect : undefined}
       onKeyDown={
-        editMode
+        editable
           ? (event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
@@ -65,7 +65,7 @@ export function BoxTile({ box, editMode, selected, onSelect }: BoxTileProps) {
       }
       className={`flex flex-col justify-between rounded-lg border p-3 ${
         isActive ? STATUS_STYLE[status] : INACTIVE_STYLE
-      } ${editMode ? "cursor-pointer transition hover:border-neutral-400" : ""} ${
+      } ${editable ? "cursor-pointer transition hover:border-neutral-400" : ""} ${
         selected ? "ring-2 ring-sky-500/70" : ""
       }`}
     >
@@ -93,12 +93,6 @@ export function BoxTile({ box, editMode, selected, onSelect }: BoxTileProps) {
           </span>
         )}
       </div>
-
-      {editMode && (
-        <span className="mt-2 text-[10px] font-medium uppercase tracking-wider text-neutral-400">
-          Editar
-        </span>
-      )}
     </div>
   );
 }
