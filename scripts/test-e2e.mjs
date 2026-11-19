@@ -289,6 +289,52 @@ try {
   const stGone = await dbRows(`SELECT id FROM box_status WHERE id = $1`, [tstBox.id]);
   ok("box de baja fuera de la vista", stGone.length === 0, JSON.stringify(stGone));
 
+  // ===== edición desde el mapa (modo edición + panel lateral) =====
+  const mapaAdmin = await fetch(BASE + "/boxes/mapa", { headers: { cookie: cookieHeader() } });
+  const mapaAdminHtml = await mapaAdmin.text();
+  ok(
+    "mapa: modo edición para admin",
+    mapaAdmin.status === 200 && mapaAdminHtml.includes("data-box-edit-toggle"),
+    `status=${mapaAdmin.status}`,
+  );
+
+  const tstBox2 = tstBoxes[1];
+  const renamed = await api("/api/boxes", {
+    method: "PATCH",
+    body: JSON.stringify({ id: tstBox2.id, number: "TST-99", sector: "B" }),
+  });
+  ok(
+    "mapa: renombrar box 200",
+    renamed.status === 200 && renamed.body.box?.number === "TST-99",
+    JSON.stringify(renamed.body),
+  );
+
+  const reactivate = await api("/api/boxes", {
+    method: "PATCH",
+    body: JSON.stringify({ id: tstBox.id, isActive: true }),
+  });
+  const stBack = await dbRows(`SELECT status FROM box_status WHERE id = $1`, [tstBox.id]);
+  ok(
+    "mapa: reactivar box vuelve a la vista",
+    reactivate.status === 200 && reactivate.body.box?.is_active === true && stBack.length === 1,
+    JSON.stringify({ status: reactivate.status, back: stBack }),
+  );
+
+  // Un box con estadía abierta (AB1234) no se da de baja ni se renumera.
+  const busyDeactivate = await api("/api/boxes", {
+    method: "PATCH",
+    body: JSON.stringify({ id: freeBox[0].id, isActive: false }),
+  });
+  const busyRenumber = await api("/api/boxes", {
+    method: "PATCH",
+    body: JSON.stringify({ id: freeBox[0].id, number: "ZZ-99" }),
+  });
+  ok(
+    "mapa: box ocupado no se da de baja ni se renumera",
+    busyDeactivate.status === 400 && busyRenumber.status === 400,
+    `baja=${busyDeactivate.status} ren=${busyRenumber.status}`,
+  );
+
   // ===== C3: administración de usuarios (el admin crea empleados desde la UI) =====
   const newEmp = await api("/api/users", {
     method: "POST",
@@ -330,6 +376,14 @@ try {
     body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
   });
   ok("empleado puede loguearse", empLogin.status === 200, JSON.stringify(empLogin.body));
+
+  const empMapaRes = await fetch(BASE + "/boxes/mapa", { headers: { cookie: cookieHeader() } });
+  const empMapaHtml = await empMapaRes.text();
+  ok(
+    "mapa: empleado sin modo edición",
+    empMapaRes.status === 200 && !empMapaHtml.includes("data-box-edit-toggle"),
+    `status=${empMapaRes.status}`,
+  );
 
   // El menú se filtra por rol: el empleado no ve secciones que no puede abrir
   // (antes las veía y terminaba en "Acceso restringido").

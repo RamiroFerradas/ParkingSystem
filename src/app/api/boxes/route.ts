@@ -99,16 +99,38 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Falta el box" }, { status: 400 });
   }
 
-  if (isActive === false) {
-    const open = await query<{ id: string }>(
-      `SELECT id FROM parking_sessions WHERE box_id = $1 AND status = 'open'`,
+  const wantsDeactivate = isActive === false;
+  const wantsStructural = typeof number === "string" || typeof floorId === "string";
+
+  if (wantsDeactivate || wantsStructural) {
+    const current = await query<{ number: string; floor_id: string }>(
+      `SELECT number, floor_id FROM parking_boxes WHERE id = $1`,
       [id],
     );
-    if (open.length > 0) {
-      return NextResponse.json(
-        { error: "No podés dar de baja un box con una estadía abierta" },
-        { status: 400 },
+    if (current.length === 0) {
+      return NextResponse.json({ error: "Box inexistente" }, { status: 404 });
+    }
+
+    const nextNumber =
+      typeof number === "string" ? number.trim().toUpperCase() : current[0]!.number;
+    const nextFloor = typeof floorId === "string" ? floorId : current[0]!.floor_id;
+    const movesBox = nextNumber !== current[0]!.number || nextFloor !== current[0]!.floor_id;
+
+    if (wantsDeactivate || movesBox) {
+      const open = await query<{ id: string }>(
+        `SELECT id FROM parking_sessions WHERE box_id = $1 AND status = 'open'`,
+        [id],
       );
+      if (open.length > 0) {
+        return NextResponse.json(
+          {
+            error: wantsDeactivate
+              ? "No podés dar de baja un box con una estadía abierta"
+              : "No podés cambiar el número o el piso de un box con una estadía abierta",
+          },
+          { status: 400 },
+        );
+      }
     }
   }
 
