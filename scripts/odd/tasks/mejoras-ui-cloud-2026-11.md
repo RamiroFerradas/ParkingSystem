@@ -1,0 +1,58 @@
+# Mejoras de operación y UI — cloud-first (nov 2026)
+
+Objetivo: dejar el ambiente local apuntando a Supabase dev, endurecer el ingreso (patente y selección de box), corregir textos de UI y ampliar la información del mapa de boxes.
+Rama: `rebuild/next-16`. Entrega: commit + deploy en Vercel cuando el usuario lo apruebe. Test runner: `scripts/test-e2e.mjs` (HTTP + DB, 75 checks) y `pnpm build`.
+
+## Specs
+
+- S1: "a supabase dev." → el ambiente local debe usar Supabase (schema `dev`), no el Postgres de Docker.
+- S2: "en el input de patente no debe aceptar espacios ni signos." → sanear en el input (mayúsculas, solo A-Z0-9) y también en el servidor (`/api/sessions/open`, `/api/vehicles/lookup`).
+- S3: "en el login deberiamos sacvar la palabra empleado ya que peude ir uin empleado o un duenio etc." → el subtítulo del login no debe decir "empleado".
+- S4: "tambien dame un usuario que sea empleado y no administrador." → crear un usuario con rol `employee` y entregar sus credenciales.
+- S5: "en el dashboard creame un cuadro como mapa de boxes es mas, podes reutilizarlo pero que sea mucho mas chico para ver directametne ahi como viene todo" → widget compacto reutilizable en el dashboard.
+- S6: "en el mapa de boxes podemos ver mucha mas info ea nivekl grande" → la página `/boxes/mapa` muestra más datos del box ocupado (patente, tipo, ticket, hora de ingreso, tiempo transcurrido).
+- S7: "el dropdown de boxes deberia permitir escribir o directamente usar un mapa de boxes para elegir cual usar en el ingreso" → reemplazar el `<select>` por un mapa de boxes clickeable con filtro de texto.
+- S8: "no deberiamos tener nada de mensajges de servicdor local, ya que por ahora la conexion va a ser toda en supabase" → eliminar mensajes de UI que mencionen "servidor local"; a futuro el flujo será local-first con sincronización a Supabase.
+- S9: "todo lo que te fui escribiendo deberia ser un conjunto de tareas" → este documento y su espejo en Engram.
+- S10: "error insert or update on table \"vehicles\" violates foreign key constraint \"vehicles_created_by_fkey\"" → una sesión ya no válida (cookie emitida contra otra base, usuario borrado o desactivado) no debe romper el ingreso ni dejar al usuario en un loop; el servidor debe revalidar la sesión contra la base y pedir login de nuevo.
+- S11: "deberia no mostrarle directamente" → el menú lateral no debe mostrar secciones que el rol no puede abrir; se filtran por la misma matriz de permisos que aplican las páginas.
+- S12: "si" → crear `shift.manage` (supervisor + admin), aplicarlo en la página y en los endpoints de caja, y aplicar `session.read_own` en estadías, historial y exportación: un usuario sin `session.read_all` solo ve las estadías que abrió.
+
+## Tasks
+
+- T1 · S1 · Local apunta a Supabase dev (`DATABASE_URL` + `DATABASE_SCHEMA=dev`, `DATA_PLANE=local` para cookie en http) · done · e2e verde contra dev
+- T2 · S2 · `normalizePlate` + saneo en ingreso y APIs · done · check "patente descarta espacios y signos" verde
+- T3 · S3 · Subtítulo del login genérico · done · check "login sin palabra empleado" verde
+- T4 · S4 · Usuario empleado en dev y prod: `empleado@parking.local` / `Empleado2026!` (rol employee) · done · login 200 y /api/users 403
+- T5 · S5 · `MiniBoxMap` compacto en dashboard · done · check de cuadritos verde
+- T6 · S6 · Mapa grande con patente, tipo, ticket, hora y transcurrido · done · check "mapa grande muestra patente y ticket" verde
+- T7 · S7 · Box picker clickeable con filtro en ingreso · done · check "mapa de boxes clickeable con filtro" verde
+- T8 · S8 · Mensajes sin "servidor local" · done (grep en `src`: 0 coincidencias)
+- T9 · S2..S7 · Checks e2e nuevos + corrida GREEN · done · 70/70 contra Supabase dev
+- T10 · S9 · Documento de tareas + espejo Engram · done
+- T11 · S10 · Revalidación de sesión contra `profiles` (existencia + `is_active`, rol desde la base), aviso "Tu sesión venció" y corte del loop proxy↔layout · done · cookie firmada con id inexistente: `GET /` → `/login?expired=1` con aviso, `POST /api/sessions/open` → 401; empleado con login fresco → ingreso 200
+- T12 · S11 · Filtro del menú por permiso: `nav-config` declara el permiso de cada ítem, `filterNavGroups` descarta ítems y grupos vacíos, `Sidebar` resuelve la matriz una vez (`permissionsFor`) · done · e2e "sidebar: empleado no ve secciones restringidas" y "sidebar: admin si ve secciones restringidas" verdes; en navegador el empleado ve Dashboard, Operaciones, Mapa de boxes, Listado de vehículos y Turnos de caja (este último lo oculta T13)
+- T13 · S12 · `shift.manage` (migración 009: supervisor + admin) aplicado en página de turnos y en `/api/shifts/open|close`; `session.read_own` aplicado con `historialScopeForSession()` en estadías, historial y export CSV · done · e2e 75/75 contra dev: "turnos: empleado bloqueado (página + endpoint)", "read_own: empleado no ve estadías ajenas", "read_own: admin ve todas las estadías"; migración aplicada en `dev` y `public` (shift.manage = admin, supervisor). Verificación independiente: PASS tras corregir el ítem "Listado" (`/vehiculos` no declaraba `vehicle.read_all`) y el fail-open de estadías
+
+## Log
+
+- L1: "a supabase dev. por otro lado unas tareas, en el input de patente no debe aceptar espacios ni signos. en el login deberiamos sacvar la palabra empleado ya que peude ir uin empleado o un duenio etc. tambien dame un usuario que sea empleado y no administrador. tambien en el dashboard creame un cuadro como mapa de boxes es mas, podes reutilizarlo pero que sea mucho mas chico para ver directametne ahi como viene todo, y en el mapa de boxes podemos ver mucha mas info ea nivekl grande"
+- L2: "el dropdown de boxes deberia permitir escribir o directamente usar un mapa de boxes para elegir cual usar en el ingreso"
+- L3: "al hacer un ingreso me da ele error "Servidor no disponible. Verificá la conexión al servidor local." no deberiamos tener nada de mensajges de servicdor local, ya que por ahora la conexion va a ser toda en supabase, en una proxima isntacia la posta seria que se guarde en local y sincronice a supabase"
+- L4: "todo lo que te fui escribiendo deberia ser un conjunto de tareas"
+- Evidencia: RED e2e con 3 fallos esperados (login, mapa grande, patente); implementación aplicada; build OK.
+- Evidencia: e2e 70/70 verde contra Supabase dev (BASE=http://localhost:3000, DATABASE_SCHEMA=dev). Bug corregido: `scripts/set-test-password.mjs` no fijaba `search_path` y escribía en public (prod) en vez de dev; ahora acepta password por argumento y aplica schema.
+- Evidencia (navegador, Playwright, dev): login `admin@parking.local` → ingreso con patente `ab 12-3.4` saneada a `AB1234`, Box 12 elegido con `aria-pressed` → "Ingreso registrado / Ticket 5 / Box 12 · AB1234".
+- Hallazgo: el `<main>` duplicado que se ve en el DOM es el árbol de la ruta anterior que Next 16 mantiene oculto (React Activity, `display:none`); benigno, no afecta accesibilidad ni layout.
+- L5: "error insert or update on table "vehicles" violates foreign key constraint "vehicles_created_by_fkey""
+- L6: "el empleado tiene restringidas areas ?"
+- Causa L5: el JWT es stateless y `getSessionUser` solo verificaba la firma. Una cookie firmada con el mismo `AUTH_SECRET` pero emitida contra otra base (o de un usuario borrado/desactivado) autenticaba igual; el `userId` no existía en `dev.profiles` y la FK de `vehicles.created_by` reventaba. Reproducido firmando un token con id inexistente (FK 400 exacto). Arreglo: `getSessionUser` lee rol y `is_active` desde `profiles` (cacheado por request) y devuelve `null` si no existe/inactivo; layout redirige a `/login?expired=1`, el proxy no vuelve a mandar a `/` cuando viene ese marcador (antes era loop infinito) y la página de login muestra "Tu sesión venció. Volvé a ingresar.". `rpcErrorResponse` mapea la FK a 401 con mensaje claro como red de seguridad.
+- Evidencia L5: e2e 70/70 verde contra dev (dos corridas) y flujo de ingreso del empleado en navegador: patente `zz 99-9` → `ZZ999`, Box 01 → "Ticket 8 · Box 01 · ZZ999".
+- L7: "deberia no mostrarle directamente"
+- Evidencia L7: e2e 72/72 verde contra dev con los dos checks nuevos de menú; navegador como `empleado@parking.local`: sidebar = Dashboard, Registrar ingreso, Registrar egreso, Estadías activas, Historial, Mapa de boxes, Listado, Turnos de caja. Admin sigue viendo las 17 secciones.
+- L8: "si" (respuesta a: crear `shift.manage` supervisor+admin y aplicar `read_own` en estadías/historial)
+- Evidencia L8: migración `db/migrations/009_permisos_turnos.sql` aplicada en `dev` y `public` (`shift.manage` = admin, supervisor). Página `/administracion/turnos` y `POST /api/shifts/open|close` exigen el permiso (403 "No tenés permiso para gestionar turnos de caja"); el ítem desaparece del menú del empleado. `read_own` vive en `historialScopeForSession()` (`src/lib/auth/scope.ts`) y se aplica en estadías (filtro `opened_by`), historial y export CSV. e2e 75/75 verde.
+- L9: "termina"
+- Evidencia L9: build de producción OK; e2e 75/75; matriz verificada por SQL en `dev` y `public`: `shift.manage` → admin, supervisor; `employee` → solo `session.read_own` (sin `read_all`).
+- Evidencia L9 (verificación independiente, contexto fresco): PASS. Encontró y se corrigió un dead end que el e2e no cubría: el ítem "Listado" (`/vehiculos`) no declaraba `vehicle.read_all`, así que el empleado lo veía y la página le respondía "Acceso restringido". También se cerró el fail-open de estadías (sin sesión ahora `redirect("/login")` en vez de consultar sin filtro). Auditoría ítem→permiso de página: 17/17 coinciden. Recheck acotado al blocker: PASS (el empleado ya no ve el grupo "Vehículos" y `GET /vehiculos` sigue negando por URL; admin lo sigue viendo).
+- Residuo de test en `dev`: `smoke-admin-…@test.local` quedó activo de una corrida fallida y había abierto un turno de caja; se **desactivó** (no se borró, para preservar el registro financiero). `dev.profiles` queda con `admin@parking.local` y `empleado@parking.local` activos.
