@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { normalizePlate } from "@/lib/plate";
 
 interface OpenResult {
   session_id: string;
@@ -32,12 +33,17 @@ export async function POST(request: Request) {
     );
   }
 
+  const cleanPlate = normalizePlate(plate);
+  if (!cleanPlate) {
+    return NextResponse.json({ error: "Patente inválida" }, { status: 400 });
+  }
+
   try {
     const rows = await query<{ r: OpenResult }>(
       `SELECT open_session($1, $2, $3, $4, $5, $6) AS r`,
       [
         sessionId,
-        plate,
+        cleanPlate,
         vehicleTypeId,
         boxId,
         user.userId,

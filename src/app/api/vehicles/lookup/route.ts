@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser } from "@/lib/api/guard";
+import { normalizePlate } from "@/lib/plate";
 
 /** Búsqueda de vehículo por patente (alta rápida D1: reutilizar registro). */
 export async function GET(request: Request) {
@@ -8,7 +9,7 @@ export async function GET(request: Request) {
   if (error) return error;
 
   const plate = new URL(request.url).searchParams.get("plate") ?? "";
-  const normalized = plate.replace(/\s/g, "").toUpperCase();
+  const normalized = normalizePlate(plate);
   if (!normalized) {
     return NextResponse.json({ found: false });
   }

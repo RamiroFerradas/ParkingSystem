@@ -11,6 +11,9 @@ interface BoxTileProps {
   status: "available" | "occupied" | "out_of_service";
   plate: string | null;
   entryAt: string | null;
+  vehicleTypeName: string | null;
+  ticketNumber: string | null;
+  elapsedLabel: string | null;
   canManage: boolean;
 }
 
@@ -28,7 +31,18 @@ const STATUS_STYLE: Record<BoxTileStatus, string> = {
   out_of_service: "border-red-900 bg-red-950/60 text-red-300",
 };
 
-export function BoxTile({ id, number, sector, status, plate, entryAt, canManage }: BoxTileProps) {
+export function BoxTile({
+  id,
+  number,
+  sector,
+  status,
+  plate,
+  entryAt,
+  vehicleTypeName,
+  ticketNumber,
+  elapsedLabel,
+  canManage,
+}: BoxTileProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -61,6 +75,8 @@ export function BoxTile({ id, number, sector, status, plate, entryAt, canManage 
 
   return (
     <div
+      data-box-tile
+      data-status={status}
       className={`flex flex-col justify-between rounded-lg border p-3 ${STATUS_STYLE[status]}`}
     >
       <div className="flex items-baseline justify-between">
@@ -74,7 +90,12 @@ export function BoxTile({ id, number, sector, status, plate, entryAt, canManage 
         {occupied ? (
           <>
             <div className="font-semibold tracking-wide text-neutral-100">{plate}</div>
-            <div className="tabular-nums opacity-80">desde {formatTime(entryAt ?? "")}</div>
+            <div className="opacity-80">{vehicleTypeName ?? "—"}</div>
+            <div className="tabular-nums opacity-80">{`Ticket #${ticketNumber ?? "—"}`}</div>
+            <div className="tabular-nums opacity-70">
+              desde {formatTime(entryAt ?? "")}
+              {elapsedLabel ? ` · ${elapsedLabel}` : ""}
+            </div>
           </>
         ) : (
           <span className="opacity-80">{STATUS_LABEL[status]}</span>

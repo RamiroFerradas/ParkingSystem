@@ -3,10 +3,11 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { printSessionTicket, PARKING_NAME } from "@/lib/print/client";
+import { normalizePlate } from "@/lib/plate";
 
 interface Props {
   vehicleTypes: { id: string; name: string }[];
-  availableBoxes: { id: string; number: string }[];
+  availableBoxes: { id: string; number: string; floor_name: string }[];
 }
 
 type Status =
@@ -28,6 +29,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   >({ state: "idle" });
   const [vehicleTypeId, setVehicleTypeId] = useState("");
   const [boxId, setBoxId] = useState("");
+  const [boxFilter, setBoxFilter] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ step: "form" });
@@ -35,8 +37,20 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
     { state: "idle" } | { state: "printing" } | { state: "ok" } | { state: "fail"; message: string }
   >({ state: "idle" });
 
+  // Mapa de boxes: filtro por número + agrupado por piso.
+  const filter = boxFilter.trim().toLowerCase();
+  const filteredBoxes = filter
+    ? availableBoxes.filter((b) => b.number.toLowerCase().includes(filter))
+    : availableBoxes;
+  const boxesByFloor = new Map<string, typeof availableBoxes>();
+  for (const box of filteredBoxes) {
+    const list = boxesByFloor.get(box.floor_name) ?? [];
+    list.push(box);
+    boxesByFloor.set(box.floor_name, list);
+  }
+
   async function lookupPlate(raw: string) {
-    const plate = raw.trim();
+    const plate = normalizePlate(raw);
     if (!plate) return;
     try {
       const res = await fetch(`/api/vehicles/lookup?plate=${encodeURIComponent(plate)}`);
@@ -59,6 +73,10 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!boxId) {
+      setError("Elegí un box para el ingreso");
+      return;
+    }
     setError(null);
     setStatus({ step: "submitting" });
     try {
@@ -90,7 +108,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
         boxNumber: availableBoxes.find((b) => b.id === boxId)?.number ?? "",
       });
     } catch {
-      setError("Servidor no disponible. Verificá la conexión al servidor local.");
+      setError("No se pudo conectar con el servidor. Intentá de nuevo.");
       setStatus({ step: "form" });
     }
   }
@@ -171,7 +189,8 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           id="plate"
           required
           value={plate}
-          onChange={(e) => setPlate(e.target.value.toUpperCase())}
+          maxLength={10}
+          onChange={(e) => setPlate(normalizePlate(e.target.value))}
           onBlur={(e) => lookupPlate(e.target.value)}
           placeholder="ABC123"
           className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-lg font-semibold tracking-widest uppercase text-neutral-100 outline-none focus:border-neutral-500"
@@ -208,23 +227,57 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
       ) : null}
 
       <div>
-        <label htmlFor="box" className="block text-xs font-medium text-neutral-400">
-          Box ({availableBoxes.length} disponibles)
-        </label>
-        <select
-          id="box"
-          required
-          value={boxId}
-          onChange={(e) => setBoxId(e.target.value)}
+        <div className="flex items-baseline justify-between">
+          <label htmlFor="box-filter" className="block text-xs font-medium text-neutral-400">
+            Box ({availableBoxes.length} disponibles)
+          </label>
+          {boxId ? (
+            <span className="text-[11px] text-emerald-400">
+              Box {availableBoxes.find((b) => b.id === boxId)?.number} elegido
+            </span>
+          ) : null}
+        </div>
+        <input
+          id="box-filter"
+          value={boxFilter}
+          onChange={(e) => setBoxFilter(e.target.value)}
+          placeholder="Escribí el número de box..."
           className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-        >
-          <option value="">Seleccionar...</option>
-          {availableBoxes.map((b) => (
-            <option key={b.id} value={b.id}>
-              Box {b.number}
-            </option>
+        />
+        <div data-box-picker className="mt-2 max-h-60 space-y-2 overflow-y-auto pr-1">
+          {[...boxesByFloor.entries()].map(([floorName, boxes]) => (
+            <div key={floorName}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">
+                {floorName}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {boxes.map((b) => {
+                  const selected = b.id === boxId;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      data-box-option
+                      aria-pressed={selected}
+                      onClick={() => setBoxId(b.id)}
+                      className={
+                        "min-w-10 rounded-md border px-2 py-1.5 text-sm font-medium tabular-nums transition-colors " +
+                        (selected
+                          ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                          : "border-neutral-700 bg-neutral-950 text-neutral-300 hover:border-neutral-500 hover:text-neutral-100")
+                      }
+                    >
+                      {b.number}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ))}
-        </select>
+          {filteredBoxes.length === 0 ? (
+            <p className="text-xs text-neutral-500">Ningún box coincide con «{boxFilter}».</p>
+          ) : null}
+        </div>
       </div>
 
       <div>

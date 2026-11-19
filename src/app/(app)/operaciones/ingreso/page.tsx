@@ -4,7 +4,7 @@ import { PrintQueuePanel } from "./print-queue";
 
 interface IngresoData {
   vehicleTypes: { id: string; name: string }[];
-  availableBoxes: { id: string; number: string }[];
+  availableBoxes: { id: string; number: string; floor_name: string }[];
 }
 
 async function loadIngresoData(): Promise<IngresoData> {
@@ -12,8 +12,11 @@ async function loadIngresoData(): Promise<IngresoData> {
     query<{ id: string; name: string }>(
       `SELECT id, name FROM vehicle_types WHERE is_active ORDER BY sort_order, name`,
     ),
-    query<{ id: string; number: string }>(
-      `SELECT id, number FROM box_status WHERE status = 'available' ORDER BY number`,
+    query<{ id: string; number: string; floor_name: string }>(
+      `SELECT id, number, floor_name
+         FROM box_status
+        WHERE status = 'available'
+        ORDER BY floor_sort, number`,
     ),
   ]);
   return { vehicleTypes, availableBoxes };

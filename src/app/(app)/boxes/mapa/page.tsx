@@ -1,6 +1,7 @@
 import { query } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
+import { formatElapsed } from "@/lib/format";
 import { BoxTile, type BoxTileStatus } from "./BoxTile";
 
 interface BoxStatusRow {
@@ -12,13 +13,17 @@ interface BoxStatusRow {
   floor_name: string;
   plate: string | null;
   entry_at: string | null;
+  vehicle_type_name: string | null;
+  ticket_number: string | null;
 }
 
 async function loadBoxes(): Promise<BoxStatusRow[]> {
   return query<BoxStatusRow>(
-    `SELECT id, number, sector, status, floor_id, floor_name, plate, entry_at
-       FROM box_status
-      ORDER BY floor_sort, number`,
+    `SELECT b.id, b.number, b.sector, b.status, b.floor_id, b.floor_name,
+            b.plate, b.entry_at, b.vehicle_type_name, s.ticket_number
+       FROM box_status b
+       LEFT JOIN parking_sessions s ON s.id = b.session_id
+      ORDER BY b.floor_sort, b.number`,
   );
 }
 
@@ -93,6 +98,20 @@ export default async function MapaBoxesPage() {
                     status={b.status as BoxTileStatus}
                     plate={b.plate}
                     entryAt={b.entry_at}
+                    vehicleTypeName={b.vehicle_type_name}
+                    ticketNumber={b.ticket_number}
+                    elapsedLabel={
+                      b.entry_at
+                        ? formatElapsed(
+                            Math.max(
+                              0,
+                              Math.round(
+                                (Date.now() - new Date(b.entry_at).getTime()) / 60000,
+                              ),
+                            ),
+                          )
+                        : null
+                    }
                     canManage={canManage}
                   />
                 ))}
