@@ -63,12 +63,26 @@ interface HistorialRowBase {
   closed_by_name: string | null;
 }
 
+/**
+ * Alcance de lectura por rol: sin `session.read_all`, un usuario solo ve las
+ * estadías que abrió (permiso `session.read_own`).
+ */
+export interface HistorialScope {
+  ownerId?: string;
+}
+
 function historialWhere(
   filters: HistorialFilters,
+  scope: HistorialScope = {},
 ): { clauses: string[]; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
   const next = () => `$${params.length}`;
+
+  if (scope.ownerId) {
+    params.push(scope.ownerId);
+    clauses.push(`s.opened_by = ${next()}::uuid`);
+  }
 
   if (filters.from) {
     params.push(filters.from);
@@ -129,8 +143,9 @@ const HISTORIAL_SELECT = `
 export async function loadHistorial(
   filters: HistorialFilters,
   limit = 500,
+  scope: HistorialScope = {},
 ): Promise<HistorialRowBase[]> {
-  const { clauses, params } = historialWhere(filters);
+  const { clauses, params } = historialWhere(filters, scope);
   const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
   return query<HistorialRowBase>(
     `${HISTORIAL_SELECT}${where}
@@ -140,8 +155,11 @@ export async function loadHistorial(
   );
 }
 
-export async function loadHistorialAll(filters: HistorialFilters): Promise<HistorialRowBase[]> {
-  const { clauses, params } = historialWhere(filters);
+export async function loadHistorialAll(
+  filters: HistorialFilters,
+  scope: HistorialScope = {},
+): Promise<HistorialRowBase[]> {
+  const { clauses, params } = historialWhere(filters, scope);
   const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
   return query<HistorialRowBase>(`${HISTORIAL_SELECT}${where} ORDER BY s.entry_at DESC`, params);
 }

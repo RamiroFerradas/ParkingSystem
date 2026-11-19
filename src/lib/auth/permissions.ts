@@ -36,3 +36,15 @@ export async function hasPermission(
     matrix.get(`${role}:*`) === true || matrix.get(`${role}:${permission}`) === true
   );
 }
+
+/**
+ * Devuelve un evaluador de permisos para un rol. La matriz se lee una sola
+ * vez (con su cache), útil para filtrar listas de ítems sin N consultas.
+ */
+export async function permissionsFor(
+  role: string,
+): Promise<(permission: PermissionKey) => boolean> {
+  const matrix = await loadPermissionMatrix();
+  return (permission) =>
+    matrix.get(`${role}:*`) === true || matrix.get(`${role}:${permission}`) === true;
+}

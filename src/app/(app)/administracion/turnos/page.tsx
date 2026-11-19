@@ -1,5 +1,8 @@
 import { query } from "@/lib/db/client";
 import { formatARS, formatTime } from "@/lib/format";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { redirect } from "next/navigation";
 import { ShiftActions } from "./shift-actions";
 
 interface ShiftView {
@@ -47,6 +50,21 @@ async function loadShift(): Promise<ShiftView> {
 }
 
 export default async function TurnosPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!(await hasPermission(user.role, "shift.manage"))) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
+          <p className="mt-1 text-sm text-neutral-300">
+            Solo supervisores y administradores pueden gestionar turnos de caja.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const shift = await loadShift();
   return (
     <div className="mx-auto max-w-lg space-y-6">

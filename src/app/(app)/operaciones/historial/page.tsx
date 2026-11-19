@@ -1,5 +1,6 @@
 import { loadFilterOptions, loadHistorial, parseHistorialFilters } from "@/lib/queries/historial";
 import type { HistorialFilters, HistorialOptions } from "@/lib/queries/historial";
+import { historialScopeForSession } from "@/lib/auth/scope";
 import { HistorialTable, type HistorialRow } from "./HistorialTable";
 
 export default async function HistorialPage({
@@ -9,14 +10,20 @@ export default async function HistorialPage({
 }) {
   const sp = await searchParams;
   const filters = parseHistorialFilters(sp);
-  const [options, rows] = await Promise.all([loadFilterOptions(), loadHistorial(filters)]);
+  const scope: { ownerId?: string } = (await historialScopeForSession()) ?? {};
+  const [options, rows] = await Promise.all([
+    loadFilterOptions(),
+    loadHistorial(filters, 500, scope),
+  ]);
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">Historial de estadías</h1>
         <p className="text-sm text-neutral-500">
-          Todas las estadías, abiertas y cerradas, con filtros por URL (compartibles)
+          {scope.ownerId
+            ? "Tus estadías (las que registraste), abiertas y cerradas, con filtros por URL"
+            : "Todas las estadías, abiertas y cerradas, con filtros por URL (compartibles)"}
         </p>
       </header>
 

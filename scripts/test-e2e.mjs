@@ -30,6 +30,13 @@ const dbRows = async (sql, params) => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try {
+    // Mismo contrato que la app: DATABASE_SCHEMA selecciona el ambiente
+    // (public = prod, dev = pruebas) vía search_path.
+    const schema = process.env.DATABASE_SCHEMA;
+    if (schema) {
+      if (!/^[a-z_][a-z0-9_]*$/i.test(schema)) throw new Error("DATABASE_SCHEMA inválido");
+      await client.query(`SET search_path TO "${schema}", public`);
+    }
     return (await client.query(sql, params)).rows;
   } finally {
     await client.end();
@@ -82,6 +89,33 @@ try {
   });
   ok("login 200", login.status === 200, JSON.stringify(login));
 
+  // login: texto genérico (no todos los usuarios son empleados)
+  const loginPage = await fetch(BASE + "/login");
+  const loginHtml = await loginPage.text();
+  ok(
+    "login sin palabra empleado",
+    loginPage.status === 200 &&
+      loginHtml.includes("Ingresá con tu cuenta") &&
+      !loginHtml.includes("cuenta de empleado"),
+    `status=${loginPage.status}`,
+  );
+
+  // ingreso: selector visual de boxes (mapa clickeable) con filtro, sin <select>
+  const ingresoRes = await fetch(BASE + "/operaciones/ingreso", {
+    headers: { cookie: cookieHeader() },
+  });
+  const ingresoHtml = await ingresoRes.text();
+  const avail = await dbRows(`SELECT count(*) n FROM box_status WHERE status = 'available'`);
+  const boxOptions = (ingresoHtml.match(/(?<= )data-box-option(?=="true")/g) ?? []).length;
+  ok(
+    "ingreso: mapa de boxes clickeable con filtro",
+    ingresoRes.status === 200 &&
+      ingresoHtml.includes('id="box-filter"') &&
+      !ingresoHtml.includes('<select id="box"') &&
+      boxOptions === Number(avail[0].n),
+    `options=${boxOptions} disponibles=${avail[0].n}`,
+  );
+
   // sin auth las rutas operativas exigen sesión
   const anon = await fetch(BASE + "/api/sessions/open", {
     method: "POST",
@@ -114,6 +148,44 @@ try {
   // lookup reconoce el vehículo creado
   const lookup = await api("/api/vehicles/lookup?plate=eze321");
   ok("lookup normaliza patente", lookup.body.found === true, JSON.stringify(lookup.body));
+
+  // mapa de boxes: muestra info ampliada del ocupado (patente, tipo, ticket)
+  const mapaRes = await fetch(BASE + "/boxes/mapa", { headers: { cookie: cookieHeader() } });
+  const mapaHtml = await mapaRes.text();
+  const autoTypeName = await dbRows(`SELECT name FROM vehicle_types WHERE code = 'AUTO'`);
+  ok(
+    "mapa grande muestra patente y ticket del box ocupado",
+    mapaRes.status === 200 &&
+      mapaHtml.includes("data-box-tile") &&
+      mapaHtml.includes("EZE321") &&
+      mapaHtml.includes(`Ticket #${ticket}`) &&
+      mapaHtml.includes(autoTypeName[0].name),
+    `status=${mapaRes.status}`,
+  );
+
+  // patente: el servidor descarta espacios y signos (solo alfanumérico)
+  const freeBox = await dbRows(
+    `SELECT id FROM parking_boxes
+      WHERE is_active
+        AND id NOT IN (SELECT box_id FROM parking_sessions WHERE status = 'open')
+      ORDER BY number LIMIT 1`,
+  );
+  const plateOpen = await api("/api/sessions/open", {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: crypto.randomUUID(),
+      plate: "ab-12 34",
+      vehicleTypeId: vt,
+      boxId: freeBox[0].id,
+      notes: "e2e",
+    }),
+  });
+  const normPlate = await dbRows(`SELECT plate FROM vehicles WHERE plate = 'AB1234'`);
+  ok(
+    "patente descarta espacios y signos",
+    plateOpen.status === 200 && normPlate.length === 1,
+    JSON.stringify({ status: plateOpen.status, body: plateOpen.body }),
+  );
 
   // egreso: cobro por HTTP
   const sessionId = (await dbRows(`SELECT id FROM parking_sessions WHERE ticket_number = $1`, [ticket]))[0].id;
@@ -258,6 +330,59 @@ try {
     body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
   });
   ok("empleado puede loguearse", empLogin.status === 200, JSON.stringify(empLogin.body));
+
+  // El menú se filtra por rol: el empleado no ve secciones que no puede abrir
+  // (antes las veía y terminaba en "Acceso restringido").
+  const empHomeRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const empHomeHtml = await empHomeRes.text();
+  const empSees = (href) => empHomeHtml.includes(`href="${href}"`);
+  ok(
+    "sidebar: empleado no ve secciones restringidas",
+    empHomeRes.status === 200 &&
+      !empSees("/administracion/usuarios") &&
+      !empSees("/administracion/auditoria") &&
+      !empSees("/tarifas/productos") &&
+      !empSees("/boxes/administracion") &&
+      !empSees("/reportes") &&
+      !empSees("/administracion/turnos") &&
+      !empSees("/vehiculos") &&
+      empSees("/operaciones/ingreso") &&
+      empSees("/boxes/mapa"),
+    `status=${empHomeRes.status}`,
+  );
+
+  // Permiso shift.manage: el empleado no gestiona turnos de caja.
+  const empTurnosRes = await fetch(BASE + "/administracion/turnos", {
+    headers: { cookie: cookieHeader() },
+  });
+  const empTurnosHtml = await empTurnosRes.text();
+  const empShift = await api("/api/shifts/open", { method: "POST", body: JSON.stringify({}) });
+  ok(
+    "turnos: empleado bloqueado (página + endpoint)",
+    empTurnosRes.status === 200 &&
+      empTurnosHtml.includes("Acceso restringido") &&
+      empShift.status === 403,
+    `page=${empTurnosRes.status} api=${empShift.status}`,
+  );
+
+  // session.read_own: el empleado solo ve las estadías que él abrió.
+  // AB1234 sigue abierta por el admin y EZE321 figura cerrada en el historial.
+  const empEstRes = await fetch(BASE + "/operaciones/estadias", {
+    headers: { cookie: cookieHeader() },
+  });
+  const empEstHtml = await empEstRes.text();
+  const empHistRes = await fetch(BASE + "/operaciones/historial", {
+    headers: { cookie: cookieHeader() },
+  });
+  const empHistHtml = await empHistRes.text();
+  ok(
+    "read_own: empleado no ve estadías ajenas",
+    empEstHtml.includes("No hay estadías activas") &&
+      !empEstHtml.includes("AB1234") &&
+      empHistHtml.includes("Tus estadías") &&
+      !empHistHtml.includes("EZE321"),
+    `est=${empEstRes.status} hist=${empHistRes.status}`,
+  );
 
   // volver a la sesión de admin (el login del empleado pisó la cookie del test)
   await api("/api/auth/login", {
@@ -518,6 +643,32 @@ try {
     `current=${anchors.length}`,
   );
 
+  // Contraparte: el admin sí ve todo el menú y todas las estadías.
+  ok(
+    "sidebar: admin si ve secciones restringidas",
+    dashHtml.includes('href="/reportes"') &&
+      dashHtml.includes('href="/administracion/usuarios"') &&
+      dashHtml.includes('href="/administracion/auditoria"') &&
+      dashHtml.includes('href="/vehiculos"'),
+    "faltan secciones para admin",
+  );
+
+  const admEstRes = await fetch(BASE + "/operaciones/estadias", {
+    headers: { cookie: cookieHeader() },
+  });
+  const admEstHtml = await admEstRes.text();
+  const admHistRes = await fetch(BASE + "/operaciones/historial", {
+    headers: { cookie: cookieHeader() },
+  });
+  const admHistHtml = await admHistRes.text();
+  ok(
+    "read_own: admin ve todas las estadías",
+    admEstHtml.includes("AB1234") &&
+      admHistHtml.includes("Todas las estadías") &&
+      admHistHtml.includes("EZE321"),
+    `est=${admEstRes.status} hist=${admHistRes.status}`,
+  );
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza
@@ -532,6 +683,7 @@ try {
     await dbRows(`DELETE FROM tariff_applications WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e'`, []);
     await dbRows(`DELETE FROM vehicles WHERE plate = 'EZE321'`, []);
+    await dbRows(`DELETE FROM vehicles WHERE plate = 'AB1234'`, []);
     await dbRows(`DELETE FROM parking_boxes WHERE floor_id IN (SELECT id FROM parking_floors WHERE name LIKE 'Piso E2E%')`, []);
     await dbRows(`DELETE FROM parking_floors WHERE name LIKE 'Piso E2E%'`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'vehicle_type' AND entity_id IN (SELECT id::text FROM vehicle_types WHERE code = 'CAMIONETA')`, []);

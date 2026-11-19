@@ -1,5 +1,6 @@
 import { loadHistorialAll, parseHistorialFilters } from "@/lib/queries/historial";
 import { requireUser } from "@/lib/api/guard";
+import { historialScopeForSession } from "@/lib/auth/scope";
 
 function csvEscape(value: string | number | null): string {
   const text = value == null ? "" : String(value);
@@ -11,10 +12,17 @@ export async function GET(request: Request) {
   const { error } = await requireUser();
   if (error) return error;
 
+  // Mismo alcance que la página: quien no tiene `session.read_all` exporta
+  // solo sus propias estadías.
+  const scope = await historialScopeForSession();
+  if (!scope) {
+    return Response.json({ error: "Sesión inválida" }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const raw = Object.fromEntries(url.searchParams.entries());
   const filters = parseHistorialFilters(raw);
-  const rows = await loadHistorialAll(filters);
+  const rows = await loadHistorialAll(filters, scope);
 
   const header = [
     "ticket",
