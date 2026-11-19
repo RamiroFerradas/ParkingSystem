@@ -1,5 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { cache } from "react";
+import { query } from "@/lib/db/client";
 
 export const SESSION_COOKIE = "parking_session";
 export const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60; // turno operativo de 12 h
@@ -56,12 +58,46 @@ export async function verifySessionToken(
   }
 }
 
-/** Lee la sesión desde la cookie httpOnly. Solo en contextos de servidor. */
+/**
+ * El token es stateless: la firma puede ser válida aunque el usuario ya no
+ * exista en la base actual (cookie emitida contra otro ambiente) o esté
+ * desactivado. Por eso el rol y el estado se leen siempre de `profiles`;
+ * el token solo aporta el id.
+ */
+const loadActiveUser = cache(async (userId: string): Promise<SessionUser | null> => {
+  try {
+    const rows = await query<{
+      id: string;
+      email: string;
+      full_name: string;
+      role: UserRole;
+      is_active: boolean;
+    }>(
+      "SELECT id, email, full_name, role, is_active FROM profiles WHERE id = $1",
+      [userId],
+    );
+    const row = rows[0];
+    if (!row || !row.is_active) return null;
+    return {
+      userId: row.id,
+      email: row.email,
+      name: row.full_name,
+      role: row.role,
+    };
+  } catch {
+    // Fail closed: ante un error de base tratamos la sesión como inválida.
+    return null;
+  }
+});
+
+/** Lee la sesión desde la cookie httpOnly y la revalida contra la base. */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  return verifySessionToken(token);
+  const payload = await verifySessionToken(token);
+  if (!payload) return null;
+  return loadActiveUser(payload.userId);
 }
 
 export function sessionCookieOptions() {

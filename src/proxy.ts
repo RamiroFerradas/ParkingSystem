@@ -16,7 +16,13 @@ export function proxy(request: NextRequest) {
     }
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (hasSession && pathname === "/login") {
+  if (
+    hasSession &&
+    pathname === "/login" &&
+    // Una sesión vencida/inválida también tiene cookie: sin este marcador
+    // el layout redirige a /login y el proxy devuelve a / en un loop.
+    !request.nextUrl.searchParams.has("expired")
+  ) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   return NextResponse.next();

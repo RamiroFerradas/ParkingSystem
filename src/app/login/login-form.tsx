@@ -29,7 +29,7 @@ export function LoginForm() {
       }
       router.replace("/");
     } catch {
-      setError("Servidor no disponible. Verificá la conexión al servidor local.");
+      setError("No se pudo conectar con el servidor. Intentá de nuevo.");
     } finally {
       setPending(false);
     }

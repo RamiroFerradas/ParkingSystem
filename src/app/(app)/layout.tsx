@@ -21,7 +21,9 @@ export default function AuthenticatedLayout({
 async function ShellGate({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) {
-    redirect("/login");
+    // `expired` evita el loop con el proxy cuando la cookie existe pero ya
+    // no es válida (usuario borrado/desactivado o cookie de otro ambiente).
+    redirect("/login?expired=1");
   }
   return (
     <div className="flex h-screen">
