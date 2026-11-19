@@ -70,7 +70,13 @@ function elapsedFor(entryAt: string | null): string | null {
   return formatElapsed(minutes);
 }
 
-export default async function MapaBoxesPage() {
+export default async function MapaBoxesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ box?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const initialBoxId = typeof params.box === "string" ? params.box : null;
   const user = await getSessionUser();
   const canManage = user ? await hasPermission(user.role, "box.manage") : false;
   const [boxes, inactiveBoxes, floorOptions] = await Promise.all([
@@ -173,6 +179,7 @@ export default async function MapaBoxesPage() {
           floors={sortedFloors}
           floorOptions={floorOptions}
           canManage={canManage}
+          initialBoxId={initialBoxId}
         />
       )}
     </div>

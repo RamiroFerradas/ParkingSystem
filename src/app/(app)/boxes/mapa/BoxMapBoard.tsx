@@ -14,10 +14,16 @@ interface BoxMapBoardProps {
   floors: BoardFloor[];
   floorOptions: { id: string; name: string }[];
   canManage: boolean;
+  initialBoxId?: string | null;
 }
 
-export function BoxMapBoard({ floors, floorOptions, canManage }: BoxMapBoardProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export function BoxMapBoard({
+  floors,
+  floorOptions,
+  canManage,
+  initialBoxId = null,
+}: BoxMapBoardProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(initialBoxId);
 
   const selected = useMemo(
     () => floors.flatMap((floor) => floor.boxes).find((box) => box.id === selectedId) ?? null,

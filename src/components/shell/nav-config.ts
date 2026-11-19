@@ -39,7 +39,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Mapa de boxes", href: "/boxes/mapa", enabled: true, permission: "box.read" },
       {
-        label: "Administración",
+        label: "Estructura",
         href: "/boxes/administracion",
         enabled: true,
         permission: "box.manage",

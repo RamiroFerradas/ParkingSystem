@@ -312,144 +312,35 @@ function FloorCard({
 
       <div className="mt-3 flex flex-wrap gap-2">
         {floor.boxes.map((box) => (
-          <BoxChip key={box.id} box={box} disabled={disabled} onAction={onAction} />
+          <BoxChip key={box.id} box={box} />
         ))}
       </div>
     </section>
   );
 }
 
-function BoxChip({
-  box,
-  disabled,
-  onAction,
-}: {
-  box: AdminBox;
-  disabled: boolean;
-  onAction: (url: string, method: "POST" | "PATCH", body: unknown) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [number, setNumber] = useState(box.number);
-  const [sector, setSector] = useState(box.sector ?? "");
-  const [confirming, setConfirming] = useState(false);
-  const occupied = box.status === "occupied";
-
-  if (!box.is_active) {
-    return (
-      <span className="flex items-center gap-1.5 rounded-md border border-dashed border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-600">
-        <span className="font-mono">{box.number}</span> (baja)
-        <button
-          className="rounded border border-neutral-700 px-1.5 text-[11px] text-neutral-300 hover:bg-neutral-800"
-          disabled={disabled}
-          onClick={() => onAction("/api/boxes", "PATCH", { id: box.id, isActive: true })}
-        >
-          Reactivar
-        </button>
-      </span>
-    );
-  }
-
-  if (editing) {
-    return (
-      <span className="flex items-center gap-1 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1.5">
-        <input
-          className={inputCls + " w-24"}
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
-          maxLength={12}
-          autoFocus
-        />
-        <input
-          className={inputCls + " w-24"}
-          value={sector}
-          onChange={(e) => setSector(e.target.value)}
-          placeholder="Sector"
-          maxLength={30}
-        />
-        <button
-          className={btnCls}
-          disabled={disabled || !number.trim()}
-          onClick={async () => {
-            await onAction("/api/boxes", "PATCH", {
-              id: box.id,
-              number: number.trim(),
-              sector,
-            });
-            setEditing(false);
-          }}
-        >
-          ✓
-        </button>
-        <button className={btnCls} onClick={() => setEditing(false)}>
-          ✕
-        </button>
-      </span>
-    );
-  }
-
+/** Cada box es solo lectura acá: se edita desde el mapa, con este link directo. */
+function BoxChip({ box }: { box: AdminBox }) {
   return (
-    <span
-      className={`relative flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${
-        occupied
-          ? "border-amber-900 bg-amber-950/50 text-amber-200"
-          : "border-neutral-800 bg-neutral-950 text-neutral-200"
+    <a
+      href={`/boxes/mapa?box=${box.id}`}
+      data-box-map-link
+      title="Editar en el mapa"
+      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition hover:border-neutral-500 ${
+        box.is_active
+          ? box.status === "occupied"
+            ? "border-amber-900 bg-amber-950/50 text-amber-200"
+            : "border-neutral-800 bg-neutral-950 text-neutral-200"
+          : "border-dashed border-neutral-800 text-neutral-600"
       }`}
     >
       <span className={`size-2 rounded-full ${STATUS_DOT[box.status ?? ""] ?? "bg-neutral-600"}`} />
       <span className="font-mono font-semibold">{box.number}</span>
       {box.sector && <span className="text-neutral-500">· {box.sector}</span>}
-      {occupied && box.plate && <span className="font-medium">{box.plate}</span>}
-      {box.is_active && (
-        <span className="ml-1 flex items-center gap-1">
-          <button
-            className="rounded border border-neutral-700 px-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
-            title="Editar número/sector"
-            disabled={disabled}
-            onClick={() => setEditing(true)}
-          >
-            ✎
-          </button>
-          <button
-            className="rounded border border-neutral-700 px-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
-            title={box.is_service_enabled ? "Poner fuera de servicio" : "Poner en servicio"}
-            disabled={disabled || occupied}
-            onClick={() =>
-              onAction("/api/boxes/toggle", "POST", {
-                boxId: box.id,
-                serviceEnabled: !box.is_service_enabled,
-              })
-            }
-          >
-            {box.is_service_enabled ? "⏸" : "▶"}
-          </button>
-          <button
-            className="rounded border border-neutral-700 px-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
-            title="Dar de baja"
-            disabled={disabled}
-            onClick={() => setConfirming(true)}
-          >
-            🗑
-          </button>
-        </span>
+      {box.status === "occupied" && box.plate && (
+        <span className="font-medium">{box.plate}</span>
       )}
-      {confirming && (
-        <span className="absolute z-10 flex gap-1 rounded-md border border-red-900 bg-neutral-950 p-1.5 shadow-lg">
-          <span className="text-[11px] text-neutral-300">¿Dar de baja {box.number}?</span>
-          <button
-            className={btnDangerCls}
-            disabled={disabled}
-            onClick={async () => {
-              await onAction("/api/boxes", "PATCH", { id: box.id, isActive: false });
-              setConfirming(false);
-            }}
-          >
-            Sí
-          </button>
-          <button className={btnCls} onClick={() => setConfirming(false)}>
-            No
-          </button>
-        </span>
-      )}
-    </span>
+      {!box.is_active && <span className="text-[10px] uppercase tracking-wider">baja</span>}
+    </a>
   );
 }

@@ -63,7 +63,7 @@ export default async function AdministracionBoxesPage() {
   if (!canManage) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold tracking-tight">Administración de boxes</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Estructura de boxes</h1>
         <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-sm text-neutral-500">
           Solo el administrador puede modificar la estructura de pisos y boxes.
         </p>
@@ -76,10 +76,11 @@ export default async function AdministracionBoxesPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Administración de boxes</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Estructura de boxes</h1>
         <p className="text-sm text-neutral-500">
-          Creá pisos, generá sus boxes en lote, editá la numeración o agregá lugares cuando
-          el estacionamiento se expanda. Los cambios quedan registrados en la auditoría.
+          Creá pisos, generá sus boxes en lote o agregá lugares cuando el estacionamiento se
+          expanda. Para editar un box (número, sector, piso o estado), tocá su chip y se abre en
+          el mapa. Los cambios quedan registrados en la auditoría.
         </p>
       </header>
 

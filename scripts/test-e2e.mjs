@@ -309,6 +309,30 @@ try {
     JSON.stringify(renamed.body),
   );
 
+  const admRes = await fetch(BASE + "/boxes/administracion", {
+    headers: { cookie: cookieHeader() },
+  });
+  const admHtml = await admRes.text();
+  ok(
+    "estructura: chips linkean al mapa",
+    admRes.status === 200 &&
+      admHtml.includes("data-box-map-link") &&
+      admHtml.includes("/boxes/mapa?box="),
+    `status=${admRes.status}`,
+  );
+
+  const deepRes = await fetch(BASE + "/boxes/mapa?box=" + tstBox2.id, {
+    headers: { cookie: cookieHeader() },
+  });
+  const deepHtml = await deepRes.text();
+  ok(
+    "mapa: deep link abre el panel del box",
+    deepRes.status === 200 &&
+      deepHtml.includes("data-box-edit-panel") &&
+      deepHtml.includes('value="TST-99"'),
+    `status=${deepRes.status}`,
+  );
+
   const reactivate = await api("/api/boxes", {
     method: "PATCH",
     body: JSON.stringify({ id: tstBox.id, isActive: true }),
