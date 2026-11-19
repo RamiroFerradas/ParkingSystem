@@ -20,7 +20,16 @@ type Status =
       plate: string;
       vehicleTypeName: string;
       boxNumber: string;
+      moved?: boolean;
     };
+
+interface PendingMove {
+  sessionId: string;
+  ticketNumber: number;
+  fromBoxNumber: string;
+  toBoxNumber: string;
+  plate: string;
+}
 
 export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   const [plate, setPlate] = useState("");
@@ -33,6 +42,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ step: "form" });
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [printState, setPrintState] = useState<
     { state: "idle" } | { state: "printing" } | { state: "ok" } | { state: "fail"; message: string }
   >({ state: "idle" });
@@ -78,6 +88,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
       return;
     }
     setError(null);
+    setPendingMove(null);
     setStatus({ step: "submitting" });
     try {
       const res = await fetch("/api/sessions/open", {
@@ -91,8 +102,27 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           notes,
         }),
       });
-      const data = (await res.json()) as { error?: string; ticketNumber?: number; sessionId?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        code?: string;
+        sameBox?: boolean;
+        ticketNumber?: number;
+        sessionId?: string;
+        session?: { id: string; ticketNumber: number; boxNumber: string };
+      };
       if (!res.ok) {
+        // Ya está estacionada en OTRO box: no se crea nada, se ofrece moverla.
+        if (data.code === "VEHICLE_PARKED" && data.session && !data.sameBox) {
+          setPendingMove({
+            sessionId: data.session.id,
+            ticketNumber: data.session.ticketNumber,
+            fromBoxNumber: data.session.boxNumber,
+            toBoxNumber: availableBoxes.find((b) => b.id === boxId)?.number ?? "",
+            plate,
+          });
+          setStatus({ step: "form" });
+          return;
+        }
         setError(data.error ?? "No se pudo registrar el ingreso");
         setStatus({ step: "form" });
         return;
@@ -107,6 +137,46 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           : vehicleTypes.find((t) => t.id === vehicleTypeId)?.name ?? "",
         boxNumber: availableBoxes.find((b) => b.id === boxId)?.number ?? "",
       });
+    } catch {
+      setError("No se pudo conectar con el servidor. Intentá de nuevo.");
+      setStatus({ step: "form" });
+    }
+  }
+
+  /** Mueve la estadía existente al box elegido; no emite ticket nuevo ni recobra. */
+  async function confirmMove() {
+    if (!pendingMove) return;
+    setError(null);
+    setStatus({ step: "submitting" });
+    try {
+      const res = await fetch("/api/sessions/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: pendingMove.sessionId, boxId }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        ticketNumber?: number;
+        boxNumber?: string;
+      };
+      if (!res.ok) {
+        setError(data.error ?? "No se pudo mover el vehículo");
+        setStatus({ step: "form" });
+        return;
+      }
+      setStatus({
+        step: "done",
+        moved: true,
+        ticketNumber: data.ticketNumber ?? pendingMove.ticketNumber,
+        sessionId: pendingMove.sessionId,
+        plate: pendingMove.plate,
+        vehicleTypeName:
+          lookup.state === "found"
+            ? lookup.vehicleTypeName
+            : vehicleTypes.find((t) => t.id === vehicleTypeId)?.name ?? "",
+        boxNumber: data.boxNumber ?? pendingMove.toBoxNumber,
+      });
+      setPendingMove(null);
     } catch {
       setError("No se pudo conectar con el servidor. Intentá de nuevo.");
       setStatus({ step: "form" });
@@ -131,6 +201,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   function resetForm() {
     setStatus({ step: "form" });
     setPrintState({ state: "idle" });
+    setPendingMove(null);
     setPlate("");
     setLookup({ state: "idle" });
     setVehicleTypeId("");
@@ -141,13 +212,20 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   if (status.step === "done") {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
-        <p className="text-sm text-emerald-400">Ingreso registrado</p>
+        <p className="text-sm text-emerald-400">
+          {status.moved ? "Vehículo movido de box" : "Ingreso registrado"}
+        </p>
         <p className="mt-1 text-3xl font-semibold tabular-nums">
           Ticket {status.ticketNumber}
         </p>
         <p className="mt-1 text-xs text-neutral-400">
           Box {status.boxNumber} · {status.plate}
         </p>
+        {status.moved ? (
+          <p className="mt-2 text-xs text-neutral-500">
+            Se conserva la misma estadía: no se recobró ni se emitió un ticket nuevo.
+          </p>
+        ) : null}
         <div className="mt-4 flex justify-center gap-2">
           {printState.state !== "ok" ? (
             <button
@@ -190,7 +268,10 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           required
           value={plate}
           maxLength={10}
-          onChange={(e) => setPlate(normalizePlate(e.target.value))}
+          onChange={(e) => {
+            setPlate(normalizePlate(e.target.value));
+            setPendingMove(null);
+          }}
           onBlur={(e) => lookupPlate(e.target.value)}
           placeholder="ABC123"
           className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-lg font-semibold tracking-widest uppercase text-neutral-100 outline-none focus:border-neutral-500"
@@ -259,7 +340,10 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
                       type="button"
                       data-box-option
                       aria-pressed={selected}
-                      onClick={() => setBoxId(b.id)}
+                      onClick={() => {
+                        setBoxId(b.id);
+                        setPendingMove(null);
+                      }}
                       className={
                         "min-w-10 rounded-md border px-2 py-1.5 text-sm font-medium tabular-nums transition-colors " +
                         (selected
@@ -298,13 +382,51 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={status.step === "submitting" || availableBoxes.length === 0}
-        className="w-full rounded-md bg-neutral-100 px-3 py-2.5 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
-      >
-        {status.step === "submitting" ? "Registrando..." : "Confirmar ingreso"}
-      </button>
+      {pendingMove ? (
+        <div
+          data-move-prompt
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3"
+        >
+          <p className="text-sm text-amber-200">
+            La patente <span className="font-semibold">{pendingMove.plate}</span> ya está
+            estacionada en el box{" "}
+            <span className="font-semibold">{pendingMove.fromBoxNumber}</span> (ticket #
+            {pendingMove.ticketNumber}).
+          </p>
+          <p className="mt-1 text-sm text-amber-200">
+            ¿Moverla al box {pendingMove.toBoxNumber}?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              data-move-confirm
+              onClick={confirmMove}
+              disabled={status.step === "submitting"}
+              className="rounded-md bg-amber-200 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-amber-100 disabled:opacity-60"
+            >
+              {status.step === "submitting"
+                ? "Moviendo..."
+                : `Mover al box ${pendingMove.toBoxNumber}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingMove(null)}
+              disabled={status.step === "submitting"}
+              className="rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-800 disabled:opacity-60"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={status.step === "submitting" || availableBoxes.length === 0}
+          className="w-full rounded-md bg-neutral-100 px-3 py-2.5 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
+        >
+          {status.step === "submitting" ? "Registrando..." : "Confirmar ingreso"}
+        </button>
+      )}
 
       {availableBoxes.length === 0 ? (
         <p className="text-center text-xs text-amber-400">

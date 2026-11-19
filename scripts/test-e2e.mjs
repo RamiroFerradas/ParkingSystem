@@ -211,6 +211,108 @@ try {
     JSON.stringify(obx),
   );
 
+  // mover vehículo de box: reingresar la misma patente en otro box no crea una
+  // segunda estadía; la API devuelve dónde está y el front ofrece moverla.
+  const moveBoxes = await dbRows(
+    `SELECT b.id, b.number
+       FROM parking_boxes b
+       JOIN parking_floors f ON f.id = b.floor_id AND f.is_active
+      WHERE b.is_active AND b.is_service_enabled
+        AND b.id NOT IN (SELECT box_id FROM parking_sessions WHERE status = 'open')
+      ORDER BY b.number
+      LIMIT 2`,
+  );
+  const [movA, movB] = moveBoxes;
+  const movOpen = await api("/api/sessions/open", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: crypto.randomUUID(), plate: "MOV123", vehicleTypeId: vt, boxId: movA.id, notes: "e2e" }),
+  });
+  ok("mover: ingreso inicial en box A", movOpen.status === 200 && movOpen.body.ticketNumber > 0, JSON.stringify(movOpen.body));
+
+  const movConflict = await api("/api/sessions/open", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: crypto.randomUUID(), plate: "mov-123", vehicleTypeId: vt, boxId: movB.id, notes: "e2e" }),
+  });
+  ok(
+    "mover: misma patente en otro box pide confirmación (409)",
+    movConflict.status === 409 &&
+      movConflict.body?.code === "VEHICLE_PARKED" &&
+      movConflict.body?.sameBox === false &&
+      movConflict.body?.session?.boxNumber === movA.number &&
+      movConflict.body?.session?.ticketNumber === movOpen.body.ticketNumber,
+    JSON.stringify(movConflict.body),
+  );
+
+  const movSessionId = movConflict.body?.session?.id;
+  const mov = await api("/api/sessions/move", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: movSessionId, boxId: movB.id }),
+  });
+  ok(
+    "mover: conserva el ticket y cambia de box",
+    mov.status === 200 &&
+      mov.body.ticketNumber === movOpen.body.ticketNumber &&
+      mov.body.boxNumber === movB.number,
+    JSON.stringify(mov.body),
+  );
+
+  const movAgain = await api("/api/sessions/open", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: crypto.randomUUID(), plate: "MOV123", vehicleTypeId: vt, boxId: movB.id, notes: "e2e" }),
+  });
+  ok(
+    "mover: la estadía quedó en el box destino",
+    movAgain.status === 409 && movAgain.body?.code === "VEHICLE_PARKED" && movAgain.body?.sameBox === true,
+    JSON.stringify(movAgain.body),
+  );
+
+  const movOriginFree = await dbRows(
+    `SELECT 1 FROM parking_sessions WHERE box_id = $1 AND status = 'open' LIMIT 1`,
+    [movA.id],
+  );
+  ok("mover: el box de origen queda libre", movOriginFree.length === 0);
+
+  // el recíproco: mover la misma estadía al box que ya está ocupado se rechaza
+  const occupied = await dbRows(
+    `SELECT box_id FROM parking_sessions WHERE status = 'open' AND id <> $1 LIMIT 1`,
+    [movSessionId],
+  );
+  const movBusy = await api("/api/sessions/move", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: movSessionId, boxId: occupied[0].box_id }),
+  });
+  ok(
+    "mover: destino ocupado rechazado",
+    movBusy.status === 409 && typeof movBusy.body?.error === "string",
+    JSON.stringify(movBusy.body),
+  );
+
+  const movObx = await dbRows(
+    `SELECT op, payload FROM sync_outbox WHERE entity_type = 'parking_session' AND entity_id = $1 ORDER BY created_at`,
+    [movSessionId],
+  );
+  ok(
+    "mover: outbox update con el box nuevo",
+    movObx.some((r) => r.op === "update" && r.payload?.box_id === movB.id),
+    JSON.stringify(movObx.map((r) => ({ op: r.op, box_id: r.payload?.box_id }))),
+  );
+  const movAudit = await dbRows(
+    `SELECT before, after FROM audit_logs WHERE action = 'session.move' AND entity_id = $1`,
+    [movSessionId],
+  );
+  ok(
+    "mover: auditoría session.move con origen y destino",
+    movAudit.length === 1 &&
+      movAudit[0].before?.box_id === movA.id &&
+      movAudit[0].after?.box_id === movB.id,
+    JSON.stringify(movAudit),
+  );
+
+  await api("/api/sessions/close", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: movSessionId, methodId: method, notes: "e2e" }),
+  });
+
   // el pago quedó atribuido al turno
   const pay = await dbRows(`SELECT p.amount_charged_cents, p.shift_id FROM payments p WHERE p.session_id = $1`, [sessionId]);
   ok("payment atribuido al turno", pay[0]?.shift_id !== null, JSON.stringify(pay));
@@ -762,6 +864,7 @@ try {
     await dbRows(`DELETE FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e'`, []);
     await dbRows(`DELETE FROM vehicles WHERE plate = 'EZE321'`, []);
     await dbRows(`DELETE FROM vehicles WHERE plate = 'AB1234'`, []);
+    await dbRows(`DELETE FROM vehicles WHERE plate = 'MOV123'`, []);
     await dbRows(`DELETE FROM parking_boxes WHERE floor_id IN (SELECT id FROM parking_floors WHERE name LIKE 'Piso E2E%')`, []);
     await dbRows(`DELETE FROM parking_floors WHERE name LIKE 'Piso E2E%'`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'vehicle_type' AND entity_id IN (SELECT id::text FROM vehicle_types WHERE code = 'CAMIONETA')`, []);
