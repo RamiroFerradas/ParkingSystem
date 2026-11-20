@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { BranchOption } from "./branch-switcher";
+import type { BranchOption } from "./branch-pill";
 
 export function BranchPicker({ options }: { options: BranchOption[] }) {
   const [busy, setBusy] = useState<string | null>(null);

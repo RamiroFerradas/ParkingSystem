@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { query } from "@/lib/db/client";
 import { BranchForm } from "@/components/shell/branch-form";
+import { BranchesManager } from "@/components/shell/branches-manager";
 
 export default function BranchesPage() {
   return (
@@ -29,38 +30,23 @@ async function BranchList() {
     name: string;
     code: string | null;
     is_active: boolean;
-    boxes: string;
+    boxes: number;
   }>(
     `SELECT b.id, b.name, b.code, b.is_active,
-            (SELECT count(*) FROM parking_boxes pb WHERE pb.branch_id = b.id)::text AS boxes
+            (SELECT count(*)::int FROM parking_boxes pb WHERE pb.branch_id = b.id) AS boxes
        FROM branches b
       ORDER BY b.is_active DESC, b.name`,
   );
 
-  if (rows.length === 0) {
-    return <p className="text-sm text-neutral-500">Todavía no hay sucursales.</p>;
-  }
-
   return (
-    <ul className="divide-y divide-neutral-800 rounded-xl border border-neutral-800 bg-neutral-900">
-      {rows.map((branch) => (
-        <li key={branch.id} className="flex items-center justify-between px-5 py-3">
-          <div>
-            <p className="text-sm text-neutral-100">
-              {branch.name}
-              {branch.code ? (
-                <span className="ml-2 text-xs text-neutral-500">{branch.code}</span>
-              ) : null}
-            </p>
-            <p className="text-xs text-neutral-500">{branch.boxes} boxes</p>
-          </div>
-          <span
-            className={`text-xs ${branch.is_active ? "text-emerald-400" : "text-neutral-500"}`}
-          >
-            {branch.is_active ? "Activa" : "Inactiva"}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <BranchesManager
+      branches={rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        isActive: row.is_active,
+        boxes: row.boxes,
+      }))}
+    />
   );
 }
