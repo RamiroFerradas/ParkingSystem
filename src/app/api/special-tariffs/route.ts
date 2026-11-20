@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
+import {
+  cancelSpecialTariffSchema,
+  createSpecialTariffSchema,
+  type CancelSpecialTariffPayload,
+  type CreateSpecialTariffPayload,
+} from "@/lib/schemas/money";
 
 interface SpecialRow {
   id: string;
@@ -17,11 +24,20 @@ interface SpecialRow {
 
 /** CRUD de tarifas especiales (períodos con ajuste sobre el tarifario base). */
 
+/** Los períodos son por sucursal: nunca se toman de un query string. */
+function branchOf(user: { branchId: string | null }): string | null {
+  return user.branchId ?? null;
+}
+
 export async function GET() {
   const { user, error } = await requireUser();
   if (error) return error;
   if (!(await hasPermission(user, "tariff.read"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
+  }
+  const branchId = branchOf(user);
+  if (!branchId) {
+    return NextResponse.json({ error: "Elegí una sucursal para gestionar tarifas" }, { status: 400 });
   }
   try {
     const rows = await query<SpecialRow>(
@@ -29,8 +45,10 @@ export async function GET() {
               adjustment_type::text AS adjustment_type, adjustment_value::text, priority,
               status::text AS status
          FROM special_tariff_periods
+        WHERE branch_id = $1
         ORDER BY starts_at DESC
         LIMIT 100`,
+      [branchId],
     );
     return NextResponse.json({ specials: rows });
   } catch (err) {
@@ -44,23 +62,19 @@ export async function POST(request: Request) {
   if (!(await hasPermission(user, "tariff.manage"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
-
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  const branchId = branchOf(user);
+  if (!branchId) {
+    return NextResponse.json({ error: "Elegí una sucursal para gestionar tarifas" }, { status: 400 });
   }
 
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const startsAt = typeof body.startsAt === "string" ? body.startsAt : "";
-  const endsAt = typeof body.endsAt === "string" ? body.endsAt : "";
-  const adjustmentType = typeof body.adjustmentType === "string" ? body.adjustmentType : "";
-  const adjustmentValue = Number(body.adjustmentValue);
-  const priority = typeof body.priority === "number" ? Math.floor(body.priority) : 100;
-  const vehicleTypeIds = Array.isArray(body.vehicleTypeIds)
-    ? (body.vehicleTypeIds as unknown[]).filter((x): x is string => typeof x === "string")
-    : [];
+  const { data: body, error: bodyError } = await parseBody<CreateSpecialTariffPayload>(
+    request,
+    createSpecialTariffSchema,
+    "Datos del período inválidos",
+  );
+  if (bodyError) return bodyError;
+
+  const { name, startsAt, endsAt, adjustmentType, adjustmentValue, priority, vehicleTypeIds } = body;
 
   if (!name || name.length > 80) {
     return NextResponse.json({ error: "Nombre inválido" }, { status: 400 });
@@ -86,10 +100,10 @@ export async function POST(request: Request) {
   try {
     const rows = await query<{ id: string }>(
       `INSERT INTO special_tariff_periods
-          (name, starts_at, ends_at, vehicle_type_ids, adjustment_type, adjustment_value, priority)
-       VALUES ($1, $2, $3, $4::uuid[], $5::special_adjustment_type, $6, $7)
+          (name, starts_at, ends_at, vehicle_type_ids, adjustment_type, adjustment_value, priority, branch_id)
+       VALUES ($1, $2, $3, $4::uuid[], $5::special_adjustment_type, $6, $7, $8)
        RETURNING id`,
-      [name, start.toISOString(), end.toISOString(), vehicleTypeIds, adjustmentType, adjustmentValue, priority],
+      [name, start.toISOString(), end.toISOString(), vehicleTypeIds, adjustmentType, adjustmentValue, priority, branchId],
     );
     await query(
       `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
@@ -110,26 +124,27 @@ export async function PATCH(request: Request) {
   if (!(await hasPermission(user, "tariff.manage"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
-
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  const branchId = branchOf(user);
+  if (!branchId) {
+    return NextResponse.json({ error: "Elegí una sucursal para gestionar tarifas" }, { status: 400 });
   }
 
-  const { id, status } = body;
-  if (typeof id !== "string" || status !== "cancelled") {
-    return NextResponse.json({ error: "Solo se puede cancelar un período" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CancelSpecialTariffPayload>(
+    request,
+    cancelSpecialTariffSchema,
+    "Solo se puede cancelar un período",
+  );
+  if (bodyError) return bodyError;
+
+  const { id } = body;
 
   try {
     const rows = await query<{ id: string }>(
       `UPDATE special_tariff_periods
           SET status = 'cancelled', updated_at = now(), version = version + 1
-        WHERE id = $1 AND status IN ('scheduled', 'active')
+        WHERE id = $1 AND branch_id = $2 AND status IN ('scheduled', 'active')
         RETURNING id`,
-      [id],
+      [id, branchId],
     );
     if (rows.length === 0) {
       return NextResponse.json(

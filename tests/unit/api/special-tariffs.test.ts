@@ -156,6 +156,33 @@ describe("POST /api/special-tariffs", () => {
     });
   });
 
+  it("stores the period under the caller's branch", async () => {
+    db.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("INSERT INTO special_tariff_periods")) return [{ id: "sp-9" }];
+      return [];
+    });
+
+    const res = await POST(jsonRequest(url, "POST", base));
+
+    expect(res.status).toBe(201);
+    const insert = db.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO special_tariff_periods"),
+    );
+    // branch_id is NOT NULL since multi-branch; an untagged insert used to
+    // reach Postgres and fail, so the route must carry it.
+    expect(String(insert?.[0])).toContain("branch_id");
+    expect(insert?.[1]?.[7]).toBe("branch-1");
+  });
+
+  it("rejects a period when the session has no branch", async () => {
+    session.getSessionUser.mockResolvedValue(makeUser({ branchId: null }));
+
+    const res = await POST(jsonRequest(url, "POST", base));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Elegí una sucursal para gestionar tarifas" });
+  });
+
   it("creates a percentage period and audits it", async () => {
     db.query.mockImplementation(async (sql: string) => {
       if (sql.includes("INSERT INTO special_tariff_periods")) return [{ id: "sp-9" }];
