@@ -27,10 +27,10 @@ export function PrintQueuePanel({ refreshKey }: { refreshKey?: number }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (options?: { keepError?: boolean }) => {
     try {
       setJobs(await fetchPendingJobs());
-      setError(null);
+      if (!options?.keepError) setError(null);
     } catch {
       setError("No se pudo cargar la cola de impresión");
     }
@@ -62,7 +62,8 @@ export function PrintQueuePanel({ refreshKey }: { refreshKey?: number }) {
       setError(
         err instanceof Error ? `Sigue pendiente: ${err.message}` : "Sigue pendiente el reintento",
       );
-      await reload();
+      // La recarga no debe borrar el motivo del fallo: solo se limpia si el reintento salió bien.
+      await reload({ keepError: true });
     } finally {
       setBusyId(null);
     }

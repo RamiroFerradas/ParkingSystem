@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { LinkPendingContent } from "./link-pending";
 
 export interface BranchOption {
   branchId: string;
@@ -154,7 +155,7 @@ export function BranchPill({
               onClick={() => setOpen(false)}
               className="block border-t border-neutral-800 px-3 py-2 text-sm text-emerald-400 hover:bg-neutral-800"
             >
-              Administrar sucursales →
+              <LinkPendingContent>Administrar sucursales →</LinkPendingContent>
             </Link>
           ) : null}
 

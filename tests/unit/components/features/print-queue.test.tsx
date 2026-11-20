@@ -137,18 +137,20 @@ describe("PrintQueuePanel", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Imprimiendo..." })).toBeNull());
   });
 
-  // BUG (print-queue.tsx:61-65): the catch block sets "Sigue pendiente: ..." and then
-  // awaits reload(), whose success branch calls setError(null). The message is therefore
-  // never visible when the queue reloads fine. The test records the real behaviour.
-  it("reloads after a failed retry but loses the pending message", async () => {
+  // FIXED (print-queue.tsx:61-65): this test used to assert the bug — the catch block set
+  // "Sigue pendiente: ..." and then awaited reload(), whose success branch called
+  // setError(null), so the operator never saw why the retry failed. The reload now keeps the
+  // retry message when it succeeds.
+  it("keeps the pending message after the failed retry reloads the queue", async () => {
     serveJobs([job({ id: "job-1", session_id: "session-1" })], []);
     printSessionTicketMock.mockRejectedValue(new Error("sin conexión"));
     render(<PrintQueuePanel />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Imprimir" }));
 
+    expect(await screen.findByText("Sigue pendiente: sin conexión")).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
-    expect(screen.queryByText("Sigue pendiente: sin conexión")).toBeNull();
+    expect(screen.getByText("Sigue pendiente: sin conexión")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Imprimir" })).toBeEnabled();
   });
 

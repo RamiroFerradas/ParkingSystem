@@ -79,6 +79,10 @@ describe("BranchPicker", () => {
 
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/"));
     expect(router.refresh).toHaveBeenCalledTimes(1);
+    // A successful switch must release the busy state, not leave the picker
+    // disabled until the component unmounts.
+    expect(screen.getByRole("button", { name: /Sucursal Norte/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Sucursal Sur/ })).toBeEnabled();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/auth/switch-branch",
       expect.objectContaining({

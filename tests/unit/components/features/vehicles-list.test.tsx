@@ -165,6 +165,37 @@ describe("VehiclesList", () => {
     expect(screen.getByText("AA123BB")).toBeInTheDocument();
   });
 
+  it("ignores an older response that lands after a newer one", async () => {
+    const pending: Array<(response: Response) => void> = [];
+    fetchMock.mockImplementation(
+      () => new Promise<Response>((resolve) => pending.push(resolve)),
+    );
+    render(<VehiclesList />);
+
+    await flushDebounce();
+    expect(pending).toHaveLength(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Buscar patente…"), { target: { value: "AB" } });
+    await flushDebounce();
+    expect(pending).toHaveLength(2);
+
+    const newer = { ...VEHICLES[0]!, id: "v9", plate: "NEW999" };
+    const older = { ...VEHICLES[0]!, id: "v8", plate: "OLD999" };
+
+    // La respuesta nueva llega primero.
+    await act(async () => {
+      pending[1]!(jsonResponse({ vehicles: [newer] }));
+    });
+    expect(screen.getByText("NEW999")).toBeInTheDocument();
+
+    // La vieja llega tarde y no debe pisar el resultado.
+    await act(async () => {
+      pending[0]!(jsonResponse({ vehicles: [older] }));
+    });
+    expect(screen.getByText("NEW999")).toBeInTheDocument();
+    expect(screen.queryByText("OLD999")).toBeNull();
+  });
+
   it("cancels the pending request timer on unmount", async () => {
     mockFetch(() => jsonResponse({ vehicles: VEHICLES }));
     const { unmount } = render(<VehiclesList />);

@@ -140,7 +140,7 @@ export function BranchesManager({ branches }: { branches: BranchRow[] }) {
                   disabled={busy === branch.id}
                   className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                 >
-                  Guardar
+                  {busy === branch.id ? "Guardando…" : "Guardar"}
                 </button>
                 <button
                   type="button"

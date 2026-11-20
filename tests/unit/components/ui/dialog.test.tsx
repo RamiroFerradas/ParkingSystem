@@ -137,6 +137,26 @@ describe("Dialog", () => {
     expect(last).toHaveFocus();
   });
 
+  it("gives each open dialog its own title id", () => {
+    render(
+      <>
+        <Dialog open onClose={vi.fn()} title="Primero" />
+        <Dialog open onClose={vi.fn()} title="Segundo" />
+      </>,
+    );
+
+    const [first, second] = screen.getAllByRole("dialog");
+    const firstTitle = within(first!).getByRole("heading", { name: "Primero" });
+    const secondTitle = within(second!).getByRole("heading", { name: "Segundo" });
+
+    expect(firstTitle.id).not.toBe("");
+    expect(firstTitle.id).not.toBe(secondTitle.id);
+    expect(first).toHaveAttribute("aria-labelledby", firstTitle.id);
+    expect(second).toHaveAttribute("aria-labelledby", secondTitle.id);
+    expect(first).toHaveAccessibleName("Primero");
+    expect(second).toHaveAccessibleName("Segundo");
+  });
+
   it("ignores Escape when no dialog is open", () => {
     const onClose = vi.fn();
     render(<Dialog open={false} onClose={onClose} title="Título" />);
@@ -271,6 +291,44 @@ describe("PromptDialog", () => {
     );
     expect(screen.getByLabelText("Nombre del box")).toHaveValue("A-12");
     expect(screen.getByRole("button", { name: "Crear" })).toBeEnabled();
+  });
+
+  it("gives each prompt its own form and input ids", () => {
+    render(
+      <>
+        <PromptDialog
+          open
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          title="Uno"
+          label="Nombre uno"
+          confirmLabel="Crear"
+        />
+        <PromptDialog
+          open
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          title="Dos"
+          label="Nombre dos"
+          confirmLabel="Crear"
+        />
+      </>,
+    );
+
+    const firstInput = screen.getByLabelText("Nombre uno") as HTMLInputElement;
+    const secondInput = screen.getByLabelText("Nombre dos") as HTMLInputElement;
+
+    expect(firstInput.id).not.toBe("");
+    expect(firstInput.id).not.toBe(secondInput.id);
+    expect(firstInput.form).not.toBeNull();
+    expect(secondInput.form).not.toBeNull();
+    expect(firstInput.form!.id).not.toBe(secondInput.form!.id);
+    expect(firstInput.form!.contains(firstInput)).toBe(true);
+
+    // The submit button outside the form still targets its own form.
+    const buttons = screen.getAllByRole("button", { name: "Crear" });
+    expect(buttons[0]).toHaveAttribute("form", firstInput.form!.id);
+    expect(buttons[1]).toHaveAttribute("form", secondInput.form!.id);
   });
 
   it("submits the typed value", async () => {

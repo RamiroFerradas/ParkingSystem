@@ -20,13 +20,13 @@ export function BranchPicker({ options }: { options: BranchOption[] }) {
       });
       if (!response.ok) {
         setError("No podés entrar a esa sucursal.");
-        setBusy(null);
         return;
       }
       router.push("/");
       router.refresh();
     } catch {
       setError("No se pudo seleccionar la sucursal.");
+    } finally {
       setBusy(null);
     }
   }

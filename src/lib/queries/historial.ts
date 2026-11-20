@@ -15,7 +15,20 @@ export interface HistorialFilters {
 
 const VALID_STATUS = new Set(["open", "closed"]);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const UUID_RE = /^[0-9a-fA-F-]{36}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `DATE_RE` valida sólo la forma; esto exige además que el día exista. */
+function isCalendarDate(value: string): boolean {
+  if (!DATE_RE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCFullYear(year); // Date.UTC mapea los años 0..99 a 1900+year
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
 
 type SearchParamsValue = string | string[] | undefined;
 
@@ -30,10 +43,10 @@ export function parseHistorialFilters(
   const filters: HistorialFilters = {};
 
   const from = firstValue(searchParams.from);
-  if (from && DATE_RE.test(from)) filters.from = from;
+  if (from && isCalendarDate(from)) filters.from = from;
 
   const to = firstValue(searchParams.to);
-  if (to && DATE_RE.test(to)) filters.to = to;
+  if (to && isCalendarDate(to)) filters.to = to;
 
   const plate = firstValue(searchParams.plate)?.trim();
   if (plate) filters.plate = plate.toUpperCase();

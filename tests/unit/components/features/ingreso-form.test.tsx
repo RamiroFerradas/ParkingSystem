@@ -520,6 +520,9 @@ describe("IngresoForm", () => {
     expect(screen.getByText("Elegí un box para continuar")).toBeInTheDocument();
   });
 
+  // FIXED (ingreso-form.tsx:431-433): the filter-miss message used to render with no boxes at
+  // all («Ningún box coincide con «»»), reading as a filter miss when the real problem was no
+  // free capacity. It now only shows when boxes exist but the filter excludes every one.
   it("explains that there are no free boxes and disables the submit", () => {
     renderForm({ availableBoxes: [] });
 
@@ -531,5 +534,18 @@ describe("IngresoForm", () => {
       "/operaciones/estadias",
     );
     expect(screen.getByRole("button", { name: "Confirmar ingreso" })).toBeDisabled();
+    expect(screen.queryByText(/Ningún box coincide/)).toBeNull();
+  });
+
+  // E5 (ingreso-form.tsx:5): the unused PARKING_NAME import has no runtime behaviour to
+  // assert, so this guards the source directly (it was lint noise only).
+  it("does not import the unused PARKING_NAME constant", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(
+      "src/app/(app)/operaciones/ingreso/ingreso-form.tsx",
+      "utf8",
+    );
+
+    expect(source).not.toContain("PARKING_NAME");
   });
 });

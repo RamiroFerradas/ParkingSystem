@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDate, formatTime } from "@/lib/format";
 
 interface VehicleRow {
@@ -17,12 +17,17 @@ export function VehiclesList() {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<VehicleRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Sólo la última búsqueda puede escribir el estado: con tecleo rápido las
+  // respuestas pueden llegar desordenadas y una vieja pisaría a la nueva.
+  const requestSeq = useRef(0);
 
   useEffect(() => {
+    const seq = ++requestSeq.current;
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/vehicles?q=${encodeURIComponent(q)}&limit=100`);
         const data = await res.json();
+        if (seq !== requestSeq.current) return;
         if (!res.ok) {
           setError(data.error ?? `Error ${res.status}`);
           return;
@@ -30,7 +35,7 @@ export function VehiclesList() {
         setError(null);
         setRows(data.vehicles);
       } catch {
-        setError("Sin conexión con el servidor");
+        if (seq === requestSeq.current) setError("Sin conexión con el servidor");
       }
     }, 250);
     return () => clearTimeout(t);

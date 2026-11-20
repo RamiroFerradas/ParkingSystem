@@ -107,6 +107,35 @@ describe("UserMenu", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("still leaves for /login when the logout request fails", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    router.replace.mockClear();
+    fetchMock.mockRejectedValue(new Error("offline"));
+
+    try {
+      renderMenu();
+
+      await openMenu(user);
+      await user.click(screen.getByRole("menuitem", { name: "Salir" }));
+
+      await waitFor(() =>
+        expect(router.replace).toHaveBeenCalledWith("/login"),
+      );
+      expect(router.replace).toHaveBeenCalledTimes(1);
+
+      // Let the rejected fetch settle so an escaping rejection would surface.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      consoleError.mockRestore();
+    }
+  });
+
   it("intercepts logout with a shift guard dialog", async () => {
     const user = userEvent.setup();
     renderMenu({ shift: SHIFT });

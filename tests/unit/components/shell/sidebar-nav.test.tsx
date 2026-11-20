@@ -21,6 +21,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,
@@ -135,6 +136,17 @@ describe("SidebarNav", () => {
     const noHref = screen.getByText("Sin destino");
     expect(noHref.tagName).toBe("SPAN");
     expect(noHref).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("renders the note of a disabled item under its label", () => {
+    render(<SidebarNav groups={GROUPS} />);
+
+    const disabled = screen.getByText("Sincronización");
+    const note = screen.getByText("Próximamente");
+
+    expect(note.tagName).toBe("SPAN");
+    expect(disabled).toContainElement(note);
+    expect(disabled).toHaveTextContent("Sincronización");
   });
 
   it("exposes the configured href on each enabled link", () => {

@@ -52,7 +52,13 @@ export function AppHeader({
         <ConnectivityBadge />
         <UserMenu
           name={context.user.name}
-          roleLabel={context.role ? (ROLE_LABELS[context.role] ?? context.role) : "Master"}
+          roleLabel={
+            context.role
+              ? (ROLE_LABELS[context.role] ?? context.role)
+              : context.isMaster
+                ? "Master"
+                : "Sin sucursal activa"
+          }
           branchName={context.branchName}
           shift={shift}
         />

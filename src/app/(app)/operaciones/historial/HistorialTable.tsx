@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   createColumnHelper,
   flexRender,
@@ -38,7 +38,8 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
 
-  async function reprint(row: HistorialRow) {
+  // useCallback para que la columna de acciones pueda memoizar sin capturar un closure viejo.
+  const reprint = useCallback(async (row: HistorialRow) => {
     setPrintingId(row.id);
     setPrintError(null);
     try {
@@ -52,7 +53,7 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
     } finally {
       setPrintingId(null);
     }
-  }
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -142,7 +143,7 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
         ),
       }),
     ],
-    [],
+    [printingId, reprint],
   );
 
   const table = useReactTable({

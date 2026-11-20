@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { printSessionTicket, PARKING_NAME } from "@/lib/print/client";
+import { printSessionTicket } from "@/lib/print/client";
 import { normalizePlate } from "@/lib/plate";
 
 interface Props {
@@ -428,7 +428,8 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
               </div>
             </div>
           ))}
-          {filteredBoxes.length === 0 ? (
+          {/* El aviso de filtro solo aplica si había boxes y el filtro dejó la lista vacía. */}
+          {availableBoxes.length > 0 && filteredBoxes.length === 0 ? (
             <p className="text-xs text-neutral-500">Ningún box coincide con «{boxFilter}».</p>
           ) : null}
         </div>

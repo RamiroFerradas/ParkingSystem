@@ -32,5 +32,5 @@ export const PERIODS: Period[] = [
 
 /** Período por defecto: 30 días. */
 export function resolvePeriod(key?: string): Period {
-  return PERIODS.find((p) => p.key === key) ?? PERIODS[3]!;
+  return PERIODS.find((p) => p.key === key) ?? PERIODS[2]!;
 }

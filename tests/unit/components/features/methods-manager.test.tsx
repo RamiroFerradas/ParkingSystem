@@ -169,6 +169,44 @@ describe("MethodsManager", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("reloads with a GET request that carries no body", async () => {
+    mockFetch((url, init) => {
+      if (init?.method === "PATCH") return jsonResponse({ method: {} });
+      return jsonResponse({
+        methods: [{ ...METHODS[0]!, is_active: false }, METHODS[1]!],
+      });
+    });
+    render(<MethodsManager methods={METHODS} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const getInit = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(getInit.method).toBe("GET");
+    expect(getInit.body).toBeUndefined();
+  });
+
+  it("reports a failed reload without leaving an unhandled rejection", async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onRejection);
+    try {
+      mockFetch((url, init) => {
+        if (init?.method === "PATCH") return jsonResponse({ method: {} });
+        return Promise.reject(new TypeError("offline")) as unknown as Response;
+      });
+      render(<MethodsManager methods={METHODS} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+
+      expect(await screen.findByText("Sin conexión con el servidor")).toBeInTheDocument();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onRejection);
+    }
+  });
+
   it("toggles the active flag and reloads the list", async () => {
     mockFetch((url, init) => {
       if (init?.method === "PATCH") return jsonResponse({ method: {} });

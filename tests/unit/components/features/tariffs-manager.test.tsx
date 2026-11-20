@@ -256,6 +256,21 @@ describe("TariffsManager", () => {
     });
   });
 
+  it("reloads with a GET request that carries no body", async () => {
+    mockFetch((url, init) => {
+      if (init?.method === "PATCH") return jsonResponse({ tariff: {} });
+      return jsonResponse({ tariffs: ALL });
+    });
+    render(<TariffsManager tariffs={ALL} vehicleTypes={VEHICLE_TYPES} />);
+
+    fireEvent.click(within(rowOf("1 h")).getByRole("button", { name: "Desactivar" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const getInit = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(getInit.method).toBe("GET");
+    expect(getInit.body).toBeUndefined();
+  });
+
   it("edits the amount of a block with a PATCH and reloads", async () => {
     mockFetch((url, init) => {
       if (init?.method === "PATCH") return jsonResponse({ tariff: {} });

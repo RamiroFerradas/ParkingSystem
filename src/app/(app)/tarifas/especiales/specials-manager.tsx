@@ -51,14 +51,16 @@ export function SpecialsManager({
   const [priority, setPriority] = useState("100");
   const [typeIds, setTypeIds] = useState<string[]>([]); // vacío = todos
 
-  async function call(url: string, method: string, body: Record<string, unknown>) {
+  async function call(url: string, method: string, body?: Record<string, unknown>) {
     setBusy(true);
     setError(null);
     try {
+      // El spec de fetch prohíbe body en GET/HEAD (el navegador lanza TypeError).
+      const allowsBody = method !== "GET" && method !== "HEAD";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: allowsBody && body !== undefined ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -72,11 +74,19 @@ export function SpecialsManager({
   }
 
   async function reload() {
-    const r = await call("/api/special-tariffs", "GET", {});
-    if (r?.specials) setList(r.specials);
+    try {
+      const r = await call("/api/special-tariffs", "GET");
+      if (r?.specials) setList(r.specials);
+    } catch {
+      setError("Sin conexión con el servidor");
+    }
   }
 
   async function createSpecial() {
+    if (new Date(endsAt) <= new Date(startsAt)) {
+      setError("El fin debe ser posterior al inicio");
+      return;
+    }
     // datetime-local es hora local (TZ del negocio); sin Z queda local en el server local
     const body: Record<string, unknown> = {
       name,
@@ -178,7 +188,7 @@ export function SpecialsManager({
           disabled={busy || !name.trim() || !startsAt || !endsAt || !adjustmentValue}
           onClick={createSpecial}
         >
-          Crear período
+          {busy ? "Creando…" : "Crear período"}
         </button>
       </section>
 

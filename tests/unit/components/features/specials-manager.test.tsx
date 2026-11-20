@@ -261,6 +261,39 @@ describe("SpecialsManager", () => {
     expect(await screen.findByText("Error 500")).toBeInTheDocument();
   });
 
+  it("reloads with a GET request that carries no body", async () => {
+    const cancelled = SPECIALS.map((s) =>
+      s.id === "sp1" ? { ...s, status: "cancelled" } : s,
+    );
+    mockFetch((url, init) => {
+      if (init?.method === "PATCH") return jsonResponse({ special: {} });
+      return jsonResponse({ specials: cancelled });
+    });
+    render(<SpecialsManager specials={SPECIALS} vehicleTypes={VEHICLE_TYPES} />);
+
+    fireEvent.click(within(rowOf("Feriado")).getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const getInit = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(getInit.method).toBe("GET");
+    expect(getInit.body).toBeUndefined();
+  });
+
+  it("rejects a period whose end is not after its start", async () => {
+    render(<SpecialsManager specials={SPECIALS} vehicleTypes={VEHICLE_TYPES} />);
+
+    fillPeriod({
+      name: "Al revés",
+      startsAt: "2030-05-26T10:00",
+      endsAt: "2030-05-25T10:00",
+      value: "15",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Crear período" }));
+
+    expect(await screen.findByText("El fin debe ser posterior al inicio")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("cancels a scheduled period and reloads the list", async () => {
     const cancelled = SPECIALS.map((s) =>
       s.id === "sp1" ? { ...s, status: "cancelled" } : s,

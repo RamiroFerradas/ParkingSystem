@@ -45,8 +45,16 @@ export function UserMenu({ name, roleLabel, branchName, shift }: Props) {
 
   async function logout() {
     setPending(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (cause) {
+      // La sesión local se abandona igual: el pedido al servidor es best-effort
+      // y un fallo no debe dejar al usuario atrapado en una pantalla que ya no usa.
+      console.error("No se pudo cerrar la sesión en el servidor", cause);
+    } finally {
+      router.replace("/login");
+      setPending(false);
+    }
   }
 
   async function closeAndLogout() {

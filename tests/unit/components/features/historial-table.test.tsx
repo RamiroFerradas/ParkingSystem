@@ -190,10 +190,11 @@ describe("HistorialTable", () => {
     ).toBeEnabled();
   });
 
-  // BUG (HistorialTable.tsx:145): the columns useMemo has an empty dependency list, so the
-  // action cell keeps the printingId captured on the first render. The row button never turns
-  // into "..." and is never disabled while a reprint is in flight.
-  it("keeps the reprint button labelled and enabled while printing (stale closure)", async () => {
+  // FIXED (HistorialTable.tsx:145): this test used to assert the bug — the columns useMemo had
+  // an empty dependency list, so the action cell kept the printingId captured on the first
+  // render and the button never turned into "..." nor got disabled. The memo now tracks the
+  // in-flight print.
+  it("disables the reprint button and shows the busy label while printing", async () => {
     let release: (value: { jobId: string }) => void = () => {};
     printSessionTicketMock.mockReturnValue(
       new Promise<{ jobId: string }>((resolve) => {
@@ -204,11 +205,14 @@ describe("HistorialTable", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Reimprimir" }));
 
-    expect(screen.getByRole("button", { name: "Reimprimir" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "..." })).toBeNull();
+    const busy = await screen.findByRole("button", { name: "..." });
+    expect(busy).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Reimprimir" })).toBeNull();
 
     release({ jobId: "job-1" });
-    await waitFor(() => expect(printSessionTicketMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reimprimir" })).toBeEnabled(),
+    );
   });
 
   it("shows the failing ticket number when a reprint fails", async () => {

@@ -83,7 +83,7 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
             disabled={busy || !name.trim()}
             onClick={createType}
           >
-            Crear
+            {busy ? "Creando…" : "Crear"}
           </button>
         </div>
       </section>

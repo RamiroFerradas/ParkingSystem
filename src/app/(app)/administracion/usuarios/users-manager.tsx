@@ -172,7 +172,7 @@ export function UsersManager({
           disabled={busy || !email.trim() || !name.trim() || password.length < 8}
           onClick={createUser}
         >
-          Crear usuario
+          {busy ? "Creando…" : "Crear usuario"}
         </button>
       </section>
 

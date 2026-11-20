@@ -75,14 +75,16 @@ export function TariffsManager({
 
   const activeType = vehicleTypes.find((vt) => vt.id === activeTypeId) ?? vehicleTypes[0];
 
-  async function call(url: string, method: string, body: Record<string, unknown>) {
+  async function call(url: string, method: string, body?: Record<string, unknown>) {
     setBusy(true);
     setError(null);
     try {
+      // El spec de fetch prohíbe body en GET/HEAD (el navegador lanza TypeError).
+      const allowsBody = method !== "GET" && method !== "HEAD";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: allowsBody && body !== undefined ? JSON.stringify(body) : undefined,
         cache: "no-store",
       });
       const data = await res.json().catch(() => null);
@@ -97,8 +99,12 @@ export function TariffsManager({
   }
 
   async function reload() {
-    const r = await call("/api/tariffs", "GET", {});
-    if (Array.isArray(r?.tariffs)) setList(r.tariffs as TariffView[]);
+    try {
+      const r = await call("/api/tariffs", "GET");
+      if (Array.isArray(r?.tariffs)) setList(r.tariffs as TariffView[]);
+    } catch {
+      setError("Sin conexión con el servidor");
+    }
   }
 
   return (
@@ -314,7 +320,7 @@ function VehicleCard({
           </>
         )}
         <button className={btnCls} disabled={busy || !canCreate} onClick={create}>
-          Agregar bloque
+          {busy ? "Guardando…" : "Agregar bloque"}
         </button>
         {formError && <p className="w-full text-xs text-red-400">{formError}</p>}
       </div>
@@ -458,7 +464,7 @@ function MonthlyPlans({
           </>
         )}
         <button className={btnCls} disabled={busy || !canCreate} onClick={create}>
-          Agregar abono
+          {busy ? "Guardando…" : "Agregar abono"}
         </button>
         {formError && <p className="w-full text-xs text-red-400">{formError}</p>}
       </div>
@@ -529,7 +535,7 @@ function MonthlyPlanRow({
         {editingAmount ? (
           <span className="flex justify-end gap-1.5">
             <button className={btnCls} disabled={busy} onClick={saveAmount}>
-              Guardar
+              {busy ? "Guardando…" : "Guardar"}
             </button>
             <button
               className={btnCls}
@@ -670,7 +676,7 @@ function TariffRow({
           {editingAmount ? (
             <span className="flex justify-end gap-1.5">
               <button className={btnCls} disabled={busy} onClick={saveAmount}>
-                Guardar
+                {busy ? "Guardando…" : "Guardar"}
               </button>
               <button
                 className={btnCls}
@@ -751,7 +757,7 @@ function TariffRow({
                 </>
               )}
               <button className={btnCls} disabled={busy} onClick={saveValidity}>
-                Guardar vigencia
+                {busy ? "Guardando…" : "Guardar vigencia"}
               </button>
               <button className={btnCls} disabled={busy} onClick={() => setEditingValidity(false)}>
                 Cancelar

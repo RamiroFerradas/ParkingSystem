@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MobileMoreButton } from "./mobile-nav";
+import { LinkPendingContent } from "./link-pending";
 
 export type MobileTabIcon = "home" | "map" | "in" | "out";
 
@@ -89,12 +90,17 @@ export function MobileTabBar({ tabs }: { tabs: MobileTab[] }) {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={
-                  "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-1 text-[10px] font-medium " +
+                  "relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-1 text-[10px] font-medium " +
                   (active ? "text-amber-400" : "text-neutral-400")
                 }
               >
-                <TabIcon icon={tab.icon} />
-                {tab.label}
+                <LinkPendingContent
+                  className="flex w-full flex-col items-center justify-center gap-1"
+                  hintClassName="absolute right-1.5 top-1.5"
+                >
+                  <TabIcon icon={tab.icon} />
+                  {tab.label}
+                </LinkPendingContent>
               </Link>
             </li>
           );

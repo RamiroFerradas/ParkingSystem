@@ -24,6 +24,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,
@@ -168,6 +169,23 @@ describe("AppHeader", () => {
     );
 
     expect(screen.getByRole("button", { name: "Master" })).toBeInTheDocument();
+  });
+
+  it("does not label a non-master without a branch as Master", () => {
+    renderHeader(
+      makeContext({
+        role: null,
+        branchId: null,
+        branchName: null,
+        isMaster: false,
+      }),
+      null,
+    );
+
+    expect(screen.queryByRole("button", { name: "Master" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Sin sucursal activa" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the user identity and branch inside the user menu", async () => {

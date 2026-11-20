@@ -10,35 +10,11 @@ import {
   StackedMonthBars,
   type StackedMonthPoint,
 } from "@/components/charts/report-charts";
+import { PERIODS, TZ, resolvePeriod } from "@/lib/reports/period";
 
 // La página consulta la DB en el servidor con datos que cambian por request.
 // Se opta por ruta bloqueante (sin PPR).
 export const instant = false;
-
-export const TZ = "America/Argentina/Cordoba";
-
-const PERIODS: { key: string; label: string; where: (col: string) => string }[] = [
-  {
-    key: "hoy",
-    label: "Hoy",
-    where: (c) => `(${c} AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`,
-  },
-  { key: "7", label: "7 días", where: (c) => `${c} >= now() - interval '7 days'` },
-  { key: "30", label: "30 días", where: (c) => `${c} >= now() - interval '30 days'` },
-  { key: "90", label: "90 días", where: (c) => `${c} >= now() - interval '90 days'` },
-  {
-    key: "mes",
-    label: "Este mes",
-    where: (c) =>
-      `date_trunc('month', ${c} AT TIME ZONE '${TZ}') = date_trunc('month', now() AT TIME ZONE '${TZ}')`,
-  },
-  {
-    key: "anio",
-    label: "Este año",
-    where: (c) =>
-      `date_trunc('year', ${c} AT TIME ZONE '${TZ}') = date_trunc('year', now() AT TIME ZONE '${TZ}')`,
-  },
-];
 
 const DAYS = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
 
@@ -112,7 +88,7 @@ export default async function ReportesPage({
 
   const branchId = context.branchId;
   const params = await searchParams;
-  const period = PERIODS.find((p) => p.key === params.p) ?? PERIODS[3]!; // default 30 días
+  const period = resolvePeriod(params.p);
   const paid = period.where("p.paid_at");
   const entry = period.where("s.entry_at");
   const exit = period.where("s.exit_at");

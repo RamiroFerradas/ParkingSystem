@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type Tone = "default" | "danger";
@@ -85,6 +85,9 @@ export function Dialog({
   footer?: ReactNode;
 }) {
   const panelRef = useDialogBehavior(open, onClose);
+  // Único por instancia: dos diálogos abiertos no pueden compartir el id del
+  // título, o `aria-labelledby` resolvería al título equivocado.
+  const titleId = useId();
 
   if (!open || typeof document === "undefined") return null;
 
@@ -100,11 +103,11 @@ export function Dialog({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialog-title"
+        aria-labelledby={titleId}
         className={`${PANEL} p-6`}
       >
         <h2
-          id="dialog-title"
+          id={titleId}
           className="text-base font-semibold tracking-tight text-neutral-100"
         >
           {title}
@@ -246,6 +249,10 @@ export function PromptDialog({
   // El valor inicial entra por `defaultValue`; los callers remontan con `key`
   // al abrir otro registro, así no hace falta resetear por efecto.
   const [value, setValue] = useState(defaultValue);
+  // Ids propios: el botón de submit vive en el footer del Dialog y se asocia
+  // al form por `form`, así que ese vínculo también debe ser único por prompt.
+  const formId = useId();
+  const inputId = useId();
   const canSubmit = value.length >= minLength && value.length > 0;
 
   return (
@@ -261,7 +268,7 @@ export function PromptDialog({
           <CancelButton onClose={onClose} busy={busy} />
           <button
             type="submit"
-            form="prompt-dialog-form"
+            form={formId}
             disabled={busy || !canSubmit}
             className="rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
           >
@@ -271,17 +278,17 @@ export function PromptDialog({
       }
     >
       <form
-        id="prompt-dialog-form"
+        id={formId}
         onSubmit={(event) => {
           event.preventDefault();
           if (canSubmit && !busy) onSubmit(value);
         }}
       >
-        <label htmlFor="prompt-dialog-input" className="block text-xs text-neutral-400">
+        <label htmlFor={inputId} className="block text-xs text-neutral-400">
           {label}
         </label>
         <input
-          id="prompt-dialog-input"
+          id={inputId}
           type={type}
           value={value}
           placeholder={placeholder}

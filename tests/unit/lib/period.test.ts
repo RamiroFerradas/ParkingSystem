@@ -35,10 +35,11 @@ describe("resolvePeriod", () => {
     expect(resolvePeriod("anio").key).toBe("anio");
   });
 
-  it("falls back to the fourth period on an unknown or missing key", () => {
-    // Documented default in the module is 30 days, but the fallback index is 3
-    // ("90"). Pinned as-is: see the finding in the feature log.
-    expect(resolvePeriod(undefined).key).toBe("90");
-    expect(resolvePeriod("no-existe").key).toBe("90");
+  it("falls back to the documented 30-day period on an unknown or missing key", () => {
+    // The fallback used to be PERIODS[3] ("90") while the doc comment promised
+    // 30 days; the fallback was corrected to PERIODS[2].
+    expect(resolvePeriod(undefined).key).toBe("30");
+    expect(resolvePeriod(undefined).label).toBe("30 días");
+    expect(resolvePeriod("no-existe").key).toBe("30");
   });
 });

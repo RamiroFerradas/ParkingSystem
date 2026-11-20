@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import type { NavGroup } from "./nav-config";
+import { LinkPendingContent } from "./link-pending";
 
 interface MobileNavValue {
   open: boolean;
@@ -223,7 +224,7 @@ function MobileNavSheet({ groups }: { groups: NavGroup[] }) {
                             : "text-neutral-300 active:bg-neutral-800")
                         }
                       >
-                        {item.label}
+                        <LinkPendingContent>{item.label}</LinkPendingContent>
                       </Link>
                     </li>
                   ) : (

@@ -31,10 +31,17 @@ describe("parseHistorialFilters", () => {
     expect(parseHistorialFilters({ from: "" })).toEqual({});
   });
 
-  it("cannot tell a real date from a syntactically shaped one", () => {
-    // Pinned behaviour: DATE_RE only checks yyyy-mm-dd shape, so month 13 is
-    // forwarded to Postgres, which then fails the cast instead of ignoring it.
-    expect(parseHistorialFilters({ from: "2026-13-01" })).toEqual({ from: "2026-13-01" });
+  it("rejects impossible calendar dates instead of forwarding them", () => {
+    // Previously the shape check alone let 2026-13-01 reach the ::date cast.
+    expect(parseHistorialFilters({ from: "2026-13-01" })).toEqual({});
+    expect(parseHistorialFilters({ to: "2026-01-32" })).toEqual({});
+    expect(parseHistorialFilters({ from: "2026-02-30" })).toEqual({});
+    expect(parseHistorialFilters({ to: "2025-02-29" })).toEqual({});
+  });
+
+  it("accepts real calendar dates, including leap days", () => {
+    expect(parseHistorialFilters({ from: "2024-02-29" })).toEqual({ from: "2024-02-29" });
+    expect(parseHistorialFilters({ to: "2026-12-31" })).toEqual({ to: "2026-12-31" });
   });
 
   it("trims and uppercases the plate", () => {
@@ -67,11 +74,14 @@ describe("parseHistorialFilters", () => {
     expect(parseHistorialFilters({ typeId: `${UUID}0` })).toEqual({});
   });
 
-  it("cannot tell a real UUID from 36 hex/hyphen characters", () => {
-    // Pinned behaviour: UUID_RE only checks length and character class, so this
-    // non-UUID string still reaches the query and Postgres rejects it later.
-    const notAUuid = "-".repeat(36);
-    expect(parseHistorialFilters({ boxId: notAUuid })).toEqual({ boxId: notAUuid });
+  it("rejects a hyphens-only string that is 36 characters long", () => {
+    // The old pattern accepted any 36 hex/hyphen characters, so this reached
+    // the ::uuid cast and Postgres raised instead of the filter being ignored.
+    expect(parseHistorialFilters({ boxId: "-".repeat(36) })).toEqual({});
+    expect(parseHistorialFilters({ typeId: UUID.replace(/-/g, "") })).toEqual({});
+    expect(parseHistorialFilters({ methodId: "1111111-2222-3333-4444-555555555555" })).toEqual(
+      {},
+    );
   });
 
   it("ignores unknown keys", () => {

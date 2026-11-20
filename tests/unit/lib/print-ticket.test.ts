@@ -180,7 +180,7 @@ describe("buildEntryTicket", () => {
     expect(taken[8]).toBe("Llave:" + " ".repeat(18) + "RETIRADA");
   });
 
-  it("wraps damage notes but loses the indent it promises", () => {
+  it("wraps damage notes and keeps the continuation indented", () => {
     const lines = decodeLines(
       buildEntryTicket({
         ...baseEntry,
@@ -191,9 +191,8 @@ describe("buildEntryTicket", () => {
     const start = lines.indexOf("Rotura: UNO DOS TRES CUATRO".padEnd(W));
     expect(start).toBeGreaterThan(-1);
     expect(lines[start]).toBe("Rotura: UNO DOS TRES CUATRO".padEnd(W));
-    // Pinned behaviour: `pad()` folds+trims, so the continuation line comes out
-    // flush-left instead of indented under the label (see the finding).
-    expect(lines[start + 1]).toBe("CINCO SEIS".padEnd(W));
+    // The continuation must align under the label, not flush-left.
+    expect(lines[start + 1]).toBe((" ".repeat(8) + "CINCO SEIS").padEnd(W));
   });
 
   it("splits a damage word longer than the available room", () => {
@@ -204,7 +203,7 @@ describe("buildEntryTicket", () => {
     const start = lines.indexOf(("Rotura: " + "X".repeat(24)).padEnd(W));
     expect(start).toBeGreaterThan(-1);
     expect(lines[start]).toBe("Rotura: " + "X".repeat(24));
-    expect(lines[start + 1]).toBe("X".repeat(5).padEnd(W));
+    expect(lines[start + 1]).toBe((" ".repeat(8) + "X".repeat(5)).padEnd(W));
   });
 
   it("truncates a long observation to one 32-column line", () => {
@@ -217,12 +216,22 @@ describe("buildEntryTicket", () => {
     expect(lines.find((line) => line.startsWith("Obs: "))!.length).toBe(W);
   });
 
-  it("glues words together when the observation contains a line break", () => {
-    // Pinned behaviour: fold() deletes control chars instead of replacing them
-    // with a space, so "uno\ndos" prints as "unodos" (see the finding).
-    const lines = decodeLines(buildEntryTicket({ ...baseEntry, notes: "uno\ndos" }));
+  it("replaces control characters with a space instead of gluing words", () => {
+    const lineBreak = decodeLines(
+      buildEntryTicket({ ...baseEntry, notes: "uno\ndos" }),
+    );
+    const controlRun = decodeLines(
+      buildEntryTicket({ ...baseEntry, notes: "uno\n\ndos" }),
+    );
+    const tab = decodeLines(buildEntryTicket({ ...baseEntry, notes: "uno\tdos" }));
 
-    expect(lines).toContain("Obs: unodos".padEnd(W));
+    expect(lineBreak).toContain("Obs: uno dos".padEnd(W));
+    // A run of non-printables collapses into a single separator.
+    expect(controlRun).toContain("Obs: uno dos".padEnd(W));
+    expect(tab).toContain("Obs: uno dos".padEnd(W));
+    for (const line of [...lineBreak, ...controlRun, ...tab]) {
+      expect(line).toMatch(/^[\x20-\x7e]*$/);
+    }
   });
 
   it("omits the damage and observation lines when there are none", () => {

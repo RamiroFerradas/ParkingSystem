@@ -24,14 +24,16 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<MethodView | null>(null);
 
-  async function call(url: string, method: string, body: Record<string, unknown>) {
+  async function call(url: string, method: string, body?: Record<string, unknown>) {
     setBusy(true);
     setError(null);
     try {
+      // El spec de fetch prohíbe body en GET/HEAD (el navegador lanza TypeError).
+      const allowsBody = method !== "GET" && method !== "HEAD";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: allowsBody && body !== undefined ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -45,8 +47,12 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
   }
 
   async function reload() {
-    const r = await call("/api/payment-methods", "GET", {});
-    if (r?.methods) setList(r.methods);
+    try {
+      const r = await call("/api/payment-methods", "GET");
+      if (r?.methods) setList(r.methods);
+    } catch {
+      setError("Sin conexión con el servidor");
+    }
   }
 
   async function createMethod() {
@@ -92,7 +98,7 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
           <input className={inputCls} placeholder="Código (ej. EFE)" value={code} onChange={(e) => setCode(e.target.value)} maxLength={20} />
           <input className={inputCls} placeholder="Nombre (ej. Efectivo)" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
           <button className={btnCls} disabled={busy || !code.trim() || !name.trim()} onClick={createMethod}>
-            Crear
+            {busy ? "Creando…" : "Crear"}
           </button>
         </div>
       </section>

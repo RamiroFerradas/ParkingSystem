@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { LinkPendingContent } from "./link-pending";
 import {
   LONG_SHIFT_MINUTES,
   formatElapsedText,
@@ -210,7 +211,7 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
               onClick={closePanel}
               className="rounded border border-neutral-700 px-2 py-0.5 text-[11px] text-neutral-300 hover:bg-neutral-800"
             >
-              Detalle
+              <LinkPendingContent>Detalle</LinkPendingContent>
             </Link>
           </div>
 

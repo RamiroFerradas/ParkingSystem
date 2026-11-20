@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavGroup } from "./nav-config";
+import { LinkPendingContent } from "./link-pending";
 
 // Ítem activo según la ruta actual: exacto para "/", prefijo para el resto
 // (las subrutas quedan dentro de su sección, p. ej. /tarifas/productos).
@@ -35,7 +36,7 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
                         : "text-neutral-300 hover:bg-neutral-800 hover:text-neutral-100")
                     }
                   >
-                    {item.label}
+                    <LinkPendingContent>{item.label}</LinkPendingContent>
                   </Link>
                 </li>
               ) : (
@@ -45,6 +46,11 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
                     className="group relative block cursor-not-allowed rounded-md px-2 py-1.5 text-sm text-neutral-600"
                   >
                     {item.label}
+                    {item.note ? (
+                      <span className="mt-0.5 block text-[11px] text-neutral-500">
+                        {item.note}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               ),

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatARS } from "@/lib/format";
+import { ConfirmDialog } from "@/components/ui/dialog";
 
 interface SubscriptionView {
   id: string;
@@ -86,6 +87,7 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noShift, setNoShift] = useState(false);
+  const [toCancel, setToCancel] = useState<SubscriptionView | null>(null);
 
   async function load() {
     const [subsRes, tariffsRes] = await Promise.all([
@@ -105,7 +107,11 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
     if (tariffsRes.ok && Array.isArray(tariffsData?.tariffs)) {
       const monthly = (tariffsData.tariffs as MonthlyPlan[]).filter((t) => t.kind === "monthly");
       setPlans(monthly);
-      setPlanId((prev) => prev || monthly[0]?.id || "");
+      // El plan elegido puede desaparecer entre recargas: si ya no existe,
+      // volvemos al primero de la lista nueva para no enviar un id viejo.
+      setPlanId((prev) =>
+        prev && monthly.some((p) => p.id === prev) ? prev : (monthly[0]?.id ?? ""),
+      );
     }
   }
 
@@ -184,16 +190,17 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
     }
   }
 
-  async function cancel(s: SubscriptionView) {
-    // eslint-disable-next-line no-alert -- confirmación nativa simple, sin modal propio
-    if (!window.confirm(`¿Cancelar el abono de ${s.plate}?`)) return;
+  async function confirmCancel() {
+    const target = toCancel;
+    if (!target) return;
+    setToCancel(null);
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: s.id }),
+        body: JSON.stringify({ id: target.id }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -322,7 +329,7 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
           disabled={busy || plans.length === 0}
           onClick={create}
         >
-          Registrar abono
+          {busy ? "Registrando…" : "Registrar abono"}
         </button>
       </section>
 
@@ -375,7 +382,7 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
                         <button
                           className={btnCls}
                           disabled={busy || s.status !== "active"}
-                          onClick={() => cancel(s)}
+                          onClick={() => setToCancel(s)}
                         >
                           Cancelar
                         </button>
@@ -388,6 +395,22 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
           </table>
         </section>
       )}
+
+      <ConfirmDialog
+        open={toCancel !== null}
+        onClose={() => setToCancel(null)}
+        onConfirm={confirmCancel}
+        title="Cancelar abono"
+        description={
+          <>
+            ¿Cancelar el abono de{" "}
+            <span className="font-mono text-neutral-200">{toCancel?.plate}</span>? Deja de
+            estar vigente; los cobros ya registrados no cambian.
+          </>
+        }
+        confirmLabel="Cancelar abono"
+        busy={busy}
+      />
     </div>
   );
 }

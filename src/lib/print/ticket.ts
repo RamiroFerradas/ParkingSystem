@@ -43,18 +43,27 @@ export interface ExitReceiptData {
   reprint?: boolean;
 }
 
-/** Plega a ASCII printable single-line-safe (sin tildes ni ñ). */
-function fold(text: string): string {
-  return text
+/**
+ * Plega a ASCII printable single-line-safe (sin tildes ni ñ).
+ * Los caracteres de control separan palabras en vez de pegarlas
+ * ("uno\ndos" -> "uno dos"). Con `keepIndent` conserva la sangría inicial,
+ * necesaria para las líneas de continuación de `block()`.
+ */
+function fold(text: string, keepIndent = false): string {
+  const plain = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ñ/gi, "n")
-    .replace(/[^\x20-\x7e]/g, "")
-    .trim();
+    .replace(/[^\x20-\x7e]+/g, " ");
+
+  if (!keepIndent) return plain.replace(/\s+/g, " ").trim();
+
+  const indent = /^ */.exec(plain)?.[0] ?? "";
+  return indent + plain.slice(indent.length).replace(/\s+/g, " ").trim();
 }
 
 function pad(text: string, width = WIDTH): string {
-  const t = fold(text);
+  const t = fold(text, true);
   return t.length >= width ? t.slice(0, width) : t + " ".repeat(width - t.length);
 }
 

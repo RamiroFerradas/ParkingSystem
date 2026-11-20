@@ -58,16 +58,17 @@ export function FloorManager({ floors }: { floors: AdminFloor[] }) {
   const [busy, setBusy] = useState(false);
   const nextSort = floors.length ? Math.max(...floors.map((f) => f.sort_order)) + 10 : 10;
 
-  async function run(url: string, method: "POST" | "PATCH", body: unknown) {
+  async function run(url: string, method: "POST" | "PATCH", body: unknown): Promise<boolean> {
     setBusy(true);
     setError(null);
     const err = await callApi(url, method, body);
     setBusy(false);
     if (err) {
       setError(err);
-      return;
+      return false;
     }
     startTransition(() => router.refresh());
+    return true;
   }
 
   return (
@@ -101,7 +102,7 @@ function NewFloorForm({
   nextSort,
 }: {
   disabled: boolean;
-  onSubmit: (url: string, method: "POST" | "PATCH", body: unknown) => Promise<void>;
+  onSubmit: (url: string, method: "POST" | "PATCH", body: unknown) => Promise<boolean>;
   nextSort: number;
 }) {
   const [name, setName] = useState("");
@@ -114,12 +115,14 @@ function NewFloorForm({
       onSubmit={async (e) => {
         e.preventDefault();
         const boxCount = parseInt(count, 10);
-        await onSubmit("/api/floors", "POST", {
+        const created = await onSubmit("/api/floors", "POST", {
           name,
           boxCount: Number.isNaN(boxCount) ? 0 : boxCount,
           prefix,
           sortOrder: nextSort,
         });
+        // Solo se limpia si el alta salió bien: si falló, el operador no pierde lo que escribió.
+        if (!created) return;
         setName("");
         setCount("");
       }}
@@ -174,7 +177,7 @@ function FloorCard({
   canMoveUp: boolean;
   canMoveDown: boolean;
   disabled: boolean;
-  onAction: (url: string, method: "POST" | "PATCH", body: unknown) => Promise<void>;
+  onAction: (url: string, method: "POST" | "PATCH", body: unknown) => Promise<boolean>;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(floor.name);
@@ -275,11 +278,13 @@ function FloorCard({
           className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 p-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            await onAction("/api/boxes", "POST", {
+            const created = await onAction("/api/boxes", "POST", {
               floorId: floor.id,
               number: boxNumber,
               sector: boxSector,
             });
+            // Un alta fallida conserva número y sector: el formulario sigue abierto.
+            if (!created) return;
             setBoxNumber("");
             setBoxSector("");
             setAddingBox(false);

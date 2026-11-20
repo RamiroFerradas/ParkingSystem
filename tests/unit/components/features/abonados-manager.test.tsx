@@ -284,8 +284,7 @@ describe("AbonadosManager", () => {
     );
   });
 
-  it("cancels a subscription after confirming and reloads", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("cancels a subscription after confirming in the dialog and reloads", async () => {
     mockFetch((url, init) => {
       if (url === "/api/subscriptions" && init?.method === "PATCH") return jsonResponse({ done: true });
       if (url === "/api/subscriptions") return jsonResponse({ subscriptions: SUBSCRIPTIONS });
@@ -299,7 +298,14 @@ describe("AbonadosManager", () => {
       }),
     );
 
-    expect(confirmSpy).toHaveBeenCalledWith("¿Cancelar el abono de AA123BB?");
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/AA123BB/)).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "PATCH"),
+    ).toHaveLength(0);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar abono" }));
+
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "PATCH"),
@@ -310,10 +316,10 @@ describe("AbonadosManager", () => {
     ) as [string, RequestInit];
     expect(patch[0]).toBe("/api/subscriptions");
     expect(JSON.parse(String(patch[1].body))).toEqual({ id: "s1" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("does nothing when the cancellation is dismissed", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("dismisses the confirmation dialog without calling the API", async () => {
     mockLoad();
     await renderLoaded();
 
@@ -323,8 +329,55 @@ describe("AbonadosManager", () => {
       }),
     );
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "PATCH")).toHaveLength(0);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "PATCH"),
+    ).toHaveLength(0);
+  });
+
+  it("falls back to the first monthly plan when the selected one disappears after a reload", async () => {
+    const nextTariffs = [
+      {
+        id: "t3",
+        kind: "monthly",
+        name: "Abono nuevo",
+        vehicle_type_name: "Auto",
+        amount_cents: "1800000",
+      },
+    ];
+    let tariffsBody: { tariffs: unknown } = { tariffs: TARIFFS };
+    mockFetch((url, init) => {
+      if (url === "/api/subscriptions" && init?.method === "POST") {
+        tariffsBody = { tariffs: nextTariffs };
+        return jsonResponse({ id: "s9" });
+      }
+      if (url === "/api/subscriptions") return jsonResponse({ subscriptions: SUBSCRIPTIONS });
+      return jsonResponse(tariffsBody);
+    });
+    await renderLoaded();
+
+    expect(screen.getByLabelText("Plan mensual")).toHaveValue("t1");
+
+    fireEvent.change(screen.getByLabelText("Patente"), { target: { value: "AA999ZZ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar abono" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Plan mensual")).toHaveValue("t3"));
+
+    fireEvent.change(screen.getByLabelText("Patente"), { target: { value: "BB999ZZ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar abono" }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "POST"),
+      ).toHaveLength(2),
+    );
+    const lastPost = fetchMock.mock.calls
+      .filter(([, init]) => (init as RequestInit).method === "POST")
+      .at(-1) as [string, RequestInit];
+    expect(JSON.parse(String(lastPost[1].body))).toMatchObject({ tariffId: "t3" });
   });
 
   it("renders the list error returned by the API", async () => {

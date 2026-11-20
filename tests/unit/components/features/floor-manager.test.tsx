@@ -171,9 +171,10 @@ describe("FloorManager", () => {
     });
   });
 
-  // BUG (FloorManager.tsx:122-124): the create form clears name and count after onSubmit
-  // resolves, even when the POST failed, so the operator loses the typed values.
-  it("clears the new floor form even when the create failed", async () => {
+  // FIXED (FloorManager.tsx:122-124): this test used to assert the bug — the create form
+  // cleared name and count after onSubmit resolved, even when the POST failed, so a 409 wiped
+  // what the operator had typed. The form now clears only on success.
+  it("keeps the typed values when the create failed", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ error: "Ya existe un piso con ese nombre" }, false, 409),
     );
@@ -189,8 +190,9 @@ describe("FloorManager", () => {
     expect(
       await screen.findByText("Ya existe un piso con ese nombre"),
     ).toBeInTheDocument();
-    expect(nameInput).toHaveValue("");
-    expect(screen.getByPlaceholderText("Cantidad de boxes")).toHaveValue(null);
+    expect(nameInput).toHaveValue("Planta alta");
+    expect(screen.getByPlaceholderText("Cantidad de boxes")).toHaveValue(4);
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("keeps the create button disabled without a floor name", () => {    renderManager([]);
@@ -311,6 +313,31 @@ describe("FloorManager", () => {
       expect(screen.queryByPlaceholderText("Número (ej. PB-31)")).toBeNull(),
     );
     expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  // FIXED (FloorManager.tsx:283-285): the add box form used to wipe number/sector and close
+  // itself even when the POST failed, so the operator had to retype everything.
+  it("keeps the add box form open with its values when the create failed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: "Ya existe un box con ese número" }, false, 409),
+    );
+    renderManager();
+
+    fireEvent.click(within(section("Planta baja")).getByRole("button", { name: "+ Box" }));
+    fireEvent.change(screen.getByPlaceholderText("Número (ej. PB-31)"), {
+      target: { value: "PB-31" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Sector (opcional)"), {
+      target: { value: "Fondo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+
+    expect(
+      await screen.findByText("Ya existe un box con ese número"),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Número (ej. PB-31)")).toHaveValue("PB-31");
+    expect(screen.getByPlaceholderText("Sector (opcional)")).toHaveValue("Fondo");
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("cancels the add box form", () => {
