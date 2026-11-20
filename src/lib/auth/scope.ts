@@ -12,7 +12,7 @@ export async function historialScopeForSession(): Promise<{
 } | null> {
   const user = await getSessionUser();
   if (!user) return null;
-  if (await hasPermission(user.role, "session.read_all")) {
+  if (await hasPermission(user, "session.read_all")) {
     return { userId: user.userId };
   }
   return { userId: user.userId, ownerId: user.userId };

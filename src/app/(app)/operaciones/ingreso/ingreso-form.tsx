@@ -8,6 +8,8 @@ import { normalizePlate } from "@/lib/plate";
 interface Props {
   vehicleTypes: { id: string; name: string }[];
   availableBoxes: { id: string; number: string; floor_name: string }[];
+  /** false = no hay turno de caja abierto: no se puede registrar el ingreso. */
+  shiftOpen: boolean;
 }
 
 type Status =
@@ -31,8 +33,9 @@ interface PendingMove {
   plate: string;
 }
 
-export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
+export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) {
   const [plate, setPlate] = useState("");
+  const [shiftMissing, setShiftMissing] = useState(!shiftOpen);
   const [lookup, setLookup] = useState<
     { state: "idle" } | { state: "found"; vehicleTypeName: string; vehicleTypeId: string } | { state: "new" }
   >({ state: "idle" });
@@ -40,6 +43,8 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
   const [boxId, setBoxId] = useState("");
   const [boxFilter, setBoxFilter] = useState("");
   const [notes, setNotes] = useState("");
+  const [keyLeft, setKeyLeft] = useState(false);
+  const [damage, setDamage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ step: "form" });
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
@@ -100,6 +105,8 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           vehicleTypeId,
           boxId,
           notes,
+          keyLeft,
+          damageNotes: damage,
         }),
       });
       const data = (await res.json()) as {
@@ -120,6 +127,11 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
             toBoxNumber: availableBoxes.find((b) => b.id === boxId)?.number ?? "",
             plate,
           });
+          setStatus({ step: "form" });
+          return;
+        }
+        if (data.code === "NO_OPEN_SHIFT") {
+          setShiftMissing(true);
           setStatus({ step: "form" });
           return;
         }
@@ -207,6 +219,8 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
     setVehicleTypeId("");
     setBoxId("");
     setNotes("");
+    setKeyLeft(false);
+    setDamage("");
   }
 
   if (status.step === "done") {
@@ -259,6 +273,19 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {shiftMissing && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3">
+          <p className="text-sm font-medium text-amber-300">
+            No hay turno de caja abierto
+          </p>
+          <p className="mt-1 text-xs text-amber-200">
+            Para registrar un ingreso primero hay que abrir el turno.{" "}
+            <Link href="/administracion/turnos" className="underline">
+              Abrir turno de caja
+            </Link>
+          </p>
+        </div>
+      )}
       <div>
         <label htmlFor="plate" className="block text-xs font-medium text-neutral-400">
           Patente
@@ -376,6 +403,37 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
         />
       </div>
 
+      <label className="flex items-start gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5">
+        <input
+          type="checkbox"
+          checked={keyLeft}
+          onChange={(e) => setKeyLeft(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-neutral-100"
+        />
+        <span>
+          <span className="block text-sm text-neutral-200">Deja la llave puesta</span>
+          <span className="block text-xs text-neutral-500">
+            La llave queda en el vehículo; se verifica al egresar.
+          </span>
+        </span>
+      </label>
+
+      <div>
+        <label htmlFor="damage" className="block text-xs font-medium text-neutral-400">
+          Roturas o daños existentes (opcional)
+        </label>
+        <textarea
+          id="damage"
+          rows={3}
+          maxLength={500}
+          value={damage}
+          onChange={(e) => setDamage(e.target.value)}
+          placeholder="Ej: rayón en puerta trasera derecha, paragolpes hundido..."
+          className="mt-1 w-full resize-y rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+        />
+        <p className="mt-1 text-[11px] text-neutral-600">{damage.length}/500</p>
+      </div>
+
       {error ? (
         <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
@@ -396,6 +454,12 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
           <p className="mt-1 text-sm text-amber-200">
             ¿Moverla al box {pendingMove.toBoxNumber}?
           </p>
+          {keyLeft || damage.trim() ? (
+            <p className="mt-1 text-xs text-amber-300">
+              La llave y las roturas cargadas no se guardan al mover un vehículo:
+              corresponden al ingreso.
+            </p>
+          ) : null}
           <div className="mt-3 flex gap-2">
             <button
               type="button"
@@ -421,7 +485,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes }: Props) {
       ) : (
         <button
           type="submit"
-          disabled={status.step === "submitting" || availableBoxes.length === 0}
+          disabled={status.step === "submitting" || availableBoxes.length === 0 || shiftMissing}
           className="w-full rounded-md bg-neutral-100 px-3 py-2.5 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
         >
           {status.step === "submitting" ? "Registrando..." : "Confirmar ingreso"}

@@ -7,7 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 export async function GET(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "vehicle.read_all"))) {
+  if (!(await hasPermission(user, "vehicle.read_all"))) {
     return NextResponse.json(
       { error: "No tenés permiso para ver el listado de vehículos" },
       { status: 403 },

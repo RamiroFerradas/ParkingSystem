@@ -18,7 +18,7 @@ interface MethodRow {
 export async function GET() {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "tariff.read"))) {
+  if (!(await hasPermission(user, "tariff.read"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
   try {
@@ -34,7 +34,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "tariff.manage"))) {
+  if (!(await hasPermission(user, "tariff.manage"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "tariff.manage"))) {
+  if (!(await hasPermission(user, "tariff.manage"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 

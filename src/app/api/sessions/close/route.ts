@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { hasPermission } from "@/lib/auth/permissions";
 
 interface CloseResult {
   session_id: string;
@@ -12,6 +13,12 @@ interface CloseResult {
 export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
+  if (!(await hasPermission(user, "session.close"))) {
+    return NextResponse.json(
+      { error: "No tenés permiso para registrar egresos" },
+      { status: 403 },
+    );
+  }
 
   let body: Record<string, unknown>;
   try {

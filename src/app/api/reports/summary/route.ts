@@ -20,7 +20,7 @@ interface MethodRow {
 export async function GET(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "reports.read"))) {
+  if (!(await hasPermission(user, "reports.read"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 

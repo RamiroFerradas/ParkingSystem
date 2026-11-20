@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { query } from "@/lib/db/client";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { redirect } from "next/navigation";
 import { formatElapsed, formatTime } from "@/lib/format";
 import { EgresoForm, type EgresoData, type FeeBreakdown } from "./egreso-form";
 
@@ -13,6 +16,21 @@ export default async function EgresoPage({
   searchParams: Promise<{ session?: string }>;
 }) {
   const { session: sessionId } = await searchParams;
+
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!(await hasPermission(user, "session.close"))) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
+          <p className="mt-1 text-sm text-neutral-300">
+            No tenés habilitado el registro de egresos.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!sessionId) {
     return (
@@ -51,6 +69,23 @@ export default async function EgresoPage({
           {formatTime(data.entryAt)}
         </p>
       </header>
+      {data.keyLeft || data.damageNotes ? (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <p className="text-sm font-medium text-amber-300">
+            Condición registrada al ingresar
+          </p>
+          {data.keyLeft ? (
+            <p className="mt-1 text-sm text-amber-200">
+              La llave quedó en el vehículo: devolvela al entregar.
+            </p>
+          ) : null}
+          {data.damageNotes ? (
+            <p className="mt-1 text-sm text-amber-200">
+              <span className="font-medium">Roturas:</span> {data.damageNotes}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <EgresoForm data={data} />
     </div>
   );
@@ -113,9 +148,11 @@ async function loadEgresoData(sessionId: string): Promise<EgresoData> {
     box_number: string;
     entry_at: string;
     elapsed: number;
+    key_left: boolean;
+    damage_notes: string | null;
   }>(
     `SELECT s.ticket_number::text, v.plate, vt.name AS vehicle_type_name,
-            b.number AS box_number, s.entry_at::text,
+            b.number AS box_number, s.entry_at::text, s.key_left, s.damage_notes,
             GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int) AS elapsed
        FROM parking_sessions s
        JOIN vehicles v ON v.id = s.vehicle_id
@@ -148,5 +185,7 @@ async function loadEgresoData(sessionId: string): Promise<EgresoData> {
     elapsedMinutes: quoteData.elapsed_minutes,
     quote: quoteData.fee,
     methods,
+    keyLeft: s.key_left,
+    damageNotes: s.damage_notes,
   };
 }

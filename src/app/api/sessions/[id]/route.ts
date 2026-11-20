@@ -33,12 +33,15 @@ export async function GET(
       method_name: string | null;
       tariff_snapshot: Record<string, unknown> | null;
       entry_notes: string | null;
+      key_left: boolean;
+      damage_notes: string | null;
     }>(
       `SELECT s.ticket_number::text, v.plate, vt.name AS vehicle_type_name, b.number AS box_number,
               s.entry_at::text, s.exit_at::text, s.status::text AS status,
               s.duration_minutes, s.base_amount_cents::text, p.discount_cents::text,
               p.surcharge_cents::text, p.amount_charged_cents::text AS final_amount_cents,
-              m.name AS method_name, s.tariff_snapshot, s.entry_notes
+              m.name AS method_name, s.tariff_snapshot, s.entry_notes,
+              s.key_left, s.damage_notes
          FROM parking_sessions s
          JOIN vehicles v ON v.id = s.vehicle_id
          JOIN vehicle_types vt ON vt.id = s.vehicle_type_id

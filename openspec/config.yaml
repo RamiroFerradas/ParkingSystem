@@ -1,0 +1,12 @@
+# OpenSpec config — parking-system
+artifact_store: openspec
+artifact_language: en
+timezone: America/Argentina/Cordoba
+currency: ARS
+currency_storage: cents_bigint
+
+# No test script, runner or test files exist. Manual node smoke/E2E scripts are
+# CI-wired only; there is no runnable test command to enforce TDD against.
+strict_tdd: configured but unenforceable
+test_runner: none
+test_command: null

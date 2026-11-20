@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLE_LABELS } from "@/components/shell/nav-config";
+import { PermissionsEditor } from "./permissions-editor";
 
 export interface ManagedUser {
   id: string;
@@ -28,6 +29,7 @@ export function UsersManager({
   const [list, setList] = useState(users);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionsFor, setPermissionsFor] = useState<ManagedUser | null>(null);
 
   // Alta de usuario
   const [email, setEmail] = useState("");
@@ -198,6 +200,14 @@ export function UsersManager({
                       <button
                         className={btnCls}
                         disabled={busy}
+                        onClick={() => setPermissionsFor(u)}
+                        title="Habilitar u ocultar secciones del sidebar"
+                      >
+                        Accesos
+                      </button>
+                      <button
+                        className={btnCls}
+                        disabled={busy}
                         onClick={() => resetPassword(u.id, u.email)}
                         title="Cambiar contraseña"
                       >
@@ -218,6 +228,16 @@ export function UsersManager({
           </tbody>
         </table>
       </section>
+
+      {permissionsFor && (
+        <PermissionsEditor
+          key={permissionsFor.id}
+          userId={permissionsFor.id}
+          userLabel={permissionsFor.full_name}
+          isSelf={permissionsFor.id === currentUserId}
+          onClose={() => setPermissionsFor(null)}
+        />
+      )}
 
       <p className="text-xs text-neutral-600">
         {ROLE_LABELS.admin}: acceso total. Supervisor: operación + reportes.

@@ -128,6 +128,29 @@ try {
   });
   ok("API operativa exige sesión", anon.status === 401, String(anon.status));
 
+  // higiene: un run anterior fallido pudo dejar un turno abierto (índice único)
+  await dbRows(`UPDATE cash_shifts SET status = 'closed', closed_at = now() WHERE status = 'open'`, []);
+
+  // regla S1: no se registra un ingreso sin turno de caja abierto
+  const noShiftRefs = await dbRows(
+    `SELECT (SELECT id FROM vehicle_types WHERE code='AUTO') vt,
+            (SELECT id FROM parking_boxes WHERE number='05') box`,
+  );
+  const noShift = await api("/api/sessions/open", {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: crypto.randomUUID(),
+      plate: "NOTURN1",
+      vehicleTypeId: noShiftRefs[0].vt,
+      boxId: noShiftRefs[0].box,
+    }),
+  });
+  ok(
+    "ingreso sin turno rechazado",
+    noShift.status === 409 && noShift.body?.code === "NO_OPEN_SHIFT",
+    JSON.stringify(noShift.body),
+  );
+
   // abrir turno
   const shiftOpen = await api("/api/shifts/open", { method: "POST", body: JSON.stringify({ notes: "e2e" }) });
   ok("turno abierto", shiftOpen.status === 200 && !!shiftOpen.body.shiftId, JSON.stringify(shiftOpen.body));
@@ -144,10 +167,20 @@ try {
   // ingreso
   const open = await api("/api/sessions/open", {
     method: "POST",
-    body: JSON.stringify({ sessionId: crypto.randomUUID(), plate: "EZE321", vehicleTypeId: vt, boxId: box, notes: "e2e" }),
+    body: JSON.stringify({ sessionId: crypto.randomUUID(), plate: "EZE321", vehicleTypeId: vt, boxId: box, notes: "e2e", keyLeft: true, damageNotes: "rayon puerta" }),
   });
   ok("ingreso 200 con ticket", open.status === 200 && open.body.ticketNumber > 0, JSON.stringify(open.body));
   const ticket = open.body?.ticketNumber;
+
+  const condition = await dbRows(
+    `SELECT key_left, damage_notes FROM parking_sessions WHERE ticket_number = $1`,
+    [ticket],
+  );
+  ok(
+    "ingreso guarda llave y roturas",
+    condition[0]?.key_left === true && condition[0]?.damage_notes === "rayon puerta",
+    JSON.stringify(condition),
+  );
 
   // lookup reconoce el vehículo creado
   const lookup = await api("/api/vehicles/lookup?plate=eze321");
@@ -321,9 +354,15 @@ try {
   const pay = await dbRows(`SELECT p.amount_charged_cents, p.shift_id FROM payments p WHERE p.session_id = $1`, [sessionId]);
   ok("payment atribuido al turno", pay[0]?.shift_id !== null, JSON.stringify(pay));
 
-  // cerrar turno
-  const shiftClose = await api("/api/shifts/close", { method: "POST", body: JSON.stringify({ notes: "e2e fin" }) });
-  ok("turno cerrado", shiftClose.status === 200, JSON.stringify(shiftClose.body));
+  // el turno no se cierra mientras queden autos adentro (AB1234 sigue abierta)
+  const shiftBlocked = await api("/api/shifts/close", { method: "POST", body: JSON.stringify({ notes: "e2e" }) });
+  ok(
+    "turno no se cierra con autos sin egreso",
+    shiftBlocked.status === 409 &&
+      shiftBlocked.body?.code === "SHIFT_HAS_OPEN_SESSIONS" &&
+      shiftBlocked.body?.openSessions >= 1,
+    JSON.stringify(shiftBlocked.body),
+  );
 
   // pantallas server-rendered
   for (const path of ["/", "/operaciones/ingreso", "/operaciones/estadias", "/operaciones/egreso", "/administracion/turnos", "/boxes/mapa", "/boxes/administracion", "/operaciones/historial"]) {
@@ -515,8 +554,10 @@ try {
     `status=${empMapaRes.status}`,
   );
 
-  // El menú se filtra por rol: el empleado no ve secciones que no puede abrir
-  // (antes las veía y terminaba en "Acceso restringido").
+  // El menú se filtra por el permiso efectivo del usuario: el empleado no ve
+  // secciones que no puede abrir (antes las veía y terminaba en "Acceso
+  // restringido"). Turnos de caja sí lo ve: la migración 011 le dio
+  // `shift.manage` para abrir y cerrar su propio turno.
   const empHomeRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
   const empHomeHtml = await empHomeRes.text();
   const empSees = (href) => empHomeHtml.includes(`href="${href}"`);
@@ -528,8 +569,8 @@ try {
       !empSees("/tarifas/productos") &&
       !empSees("/boxes/administracion") &&
       !empSees("/reportes") &&
-      !empSees("/administracion/turnos") &&
       !empSees("/vehiculos") &&
+      empSees("/administracion/turnos") &&
       empSees("/operaciones/ingreso") &&
       empSees("/boxes/mapa"),
     `status=${empHomeRes.status}`,
@@ -546,18 +587,18 @@ try {
     `status=${empBoxesRes.status}`,
   );
 
-  // Permiso shift.manage: el empleado no gestiona turnos de caja.
+  // Permiso shift.manage: el empleado gestiona su turno, pero no cierra el de otro.
   const empTurnosRes = await fetch(BASE + "/administracion/turnos", {
     headers: { cookie: cookieHeader() },
   });
   const empTurnosHtml = await empTurnosRes.text();
-  const empShift = await api("/api/shifts/open", { method: "POST", body: JSON.stringify({}) });
+  const empCloseOther = await api("/api/shifts/close", { method: "POST", body: JSON.stringify({}) });
   ok(
-    "turnos: empleado bloqueado (página + endpoint)",
+    "turnos: empleado ve la página y no cierra el turno ajeno",
     empTurnosRes.status === 200 &&
-      empTurnosHtml.includes("Acceso restringido") &&
-      empShift.status === 403,
-    `page=${empTurnosRes.status} api=${empShift.status}`,
+      !empTurnosHtml.includes("Acceso restringido") &&
+      empCloseOther.status === 403,
+    `page=${empTurnosRes.status} close=${empCloseOther.status}`,
   );
 
   // session.read_own: el empleado solo ve las estadías que él abrió.
@@ -580,6 +621,185 @@ try {
   );
 
   // volver a la sesión de admin (el login del empleado pisó la cookie del test)
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
+  });
+
+  // ===== Permisos por usuario: el admin habilita/niega secciones del sidebar =====
+  // El empleado no tiene excepciones: hereda la matriz del rol.
+  const permEmpId = newEmp.body.user.id;
+  const permOf = (body, key) => body?.permissions?.find((p) => p.permission === key);
+  const permsBase = await api(`/api/users/${permEmpId}/permissions`);
+  ok(
+    "permisos: el empleado hereda el rol (sin excepciones)",
+    permsBase.status === 200 &&
+      permOf(permsBase.body, "reports.read")?.roleAllowed === false &&
+      permOf(permsBase.body, "reports.read")?.effective === false &&
+      permOf(permsBase.body, "reports.read")?.override === null &&
+      permOf(permsBase.body, "box.read")?.roleAllowed === true &&
+      permOf(permsBase.body, "session.open")?.roleAllowed === true,
+    JSON.stringify(permsBase.body).slice(0, 300),
+  );
+
+  // Permitir Reportes a este empleado: el permiso abre menú, página y API.
+  const permGrant = await api(`/api/users/${permEmpId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({ overrides: [{ permission: "reports.read", allowed: true }] }),
+  });
+  ok("permisos: conceder reportes 200", permGrant.status === 200, JSON.stringify(permGrant.body));
+
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
+  });
+  const grantHomeRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const grantHomeHtml = await grantHomeRes.text();
+  const grantReportRes = await fetch(BASE + "/reportes", { headers: { cookie: cookieHeader() } });
+  const grantReportHtml = await grantReportRes.text();
+  const grantReportApi = await api("/api/reports/summary?days=30");
+  ok(
+    "permisos: concedido abre menú, página y API",
+    grantHomeHtml.includes('href="/reportes"') &&
+      grantReportRes.status === 200 &&
+      !grantReportHtml.includes("Acceso restringido") &&
+      grantReportApi.status === 200,
+    `menu=${grantHomeHtml.includes('href="/reportes"')} page=${grantReportRes.status} api=${grantReportApi.status}`,
+  );
+
+  // Denegar un permiso que el rol sí tiene: gana la excepción por usuario
+  // (oculta el ítem del menú y la página responde "Acceso restringido").
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
+  });
+  const permDeny = await api(`/api/users/${permEmpId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({
+      overrides: [
+        { permission: "reports.read", allowed: null },
+        { permission: "box.read", allowed: false },
+      ],
+    }),
+  });
+  ok("permisos: denegar mapa de boxes 200", permDeny.status === 200, JSON.stringify(permDeny.body));
+
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
+  });
+  const denyHomeRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const denyHomeHtml = await denyHomeRes.text();
+  const denyMapRes = await fetch(BASE + "/boxes/mapa", { headers: { cookie: cookieHeader() } });
+  const denyMapHtml = await denyMapRes.text();
+  ok(
+    "permisos: denegado oculta el menú y bloquea la página",
+    !denyHomeHtml.includes('href="/boxes/mapa"') &&
+      !denyHomeHtml.includes('href="/reportes"') &&
+      !denyHomeHtml.includes("data-box-grid-mini") &&
+      denyMapRes.status === 200 &&
+      denyMapHtml.includes("Acceso restringido"),
+    `menuMapa=${denyHomeHtml.includes('href="/boxes/mapa"')} page=${denyMapRes.status}`,
+  );
+
+  // El configurador exige user.manage; el empleado no lo ejerce.
+  const permForbidden = await api(`/api/users/${permEmpId}/permissions`);
+  ok("permisos: empleado no administra accesos", permForbidden.status === 403, JSON.stringify(permForbidden.body));
+
+  // Volver al admin: validaciones del PUT y restauración a "heredado".
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
+  });
+  const permBadKey = await api(`/api/users/${permEmpId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({ overrides: [{ permission: "no.existe", allowed: true }] }),
+  });
+  ok("permisos: clave inválida 400", permBadKey.status === 400, JSON.stringify(permBadKey.body));
+
+  const permAdminId = (await dbRows(`SELECT id FROM profiles WHERE email = $1`, [smokeEmail]))[0].id;
+  const mePermissions = await api(`/api/users/${permAdminId}/permissions`);
+  const selfLock = await api(`/api/users/${permAdminId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({ overrides: [{ permission: "user.manage", allowed: false }] }),
+  });
+  ok(
+    "permisos: el admin no se quita user.manage a sí mismo",
+    mePermissions.status === 200 && selfLock.status === 400,
+    `get=${mePermissions.status} put=${selfLock.status}`,
+  );
+
+  // La protección no depende de que el usuario sea admin: un supervisor con
+  // user.manage por excepción tampoco puede soltarlo volviendo a "heredado",
+  // porque eso lo dejaría sin el permiso y puede vaciar la administración.
+  const supEmail = "supervisor-e2e@parking.local";
+  const newSup = await api("/api/users", {
+    method: "POST",
+    body: JSON.stringify({
+      email: supEmail,
+      fullName: "Supervisor E2E",
+      role: "supervisor",
+      password: "Supervisor2026!",
+    }),
+  });
+  const supId = newSup.body?.user?.id;
+  await api(`/api/users/${supId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({ overrides: [{ permission: "user.manage", allowed: true }] }),
+  });
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: supEmail, password: "Supervisor2026!" }),
+  });
+  const supSelfDrop = await api(`/api/users/${supId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({ overrides: [{ permission: "user.manage", allowed: null }] }),
+  });
+  ok(
+    "permisos: heredado no deja al sistema sin administración",
+    newSup.status === 201 && supSelfDrop.status === 400,
+    JSON.stringify(supSelfDrop.body),
+  );
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
+  });
+
+  const permReset = await api(`/api/users/${permEmpId}/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({
+      overrides: [
+        { permission: "box.read", allowed: null },
+        { permission: "reports.read", allowed: null },
+      ],
+    }),
+  });
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Empleado2026!" }),
+  });
+  const resetHomeRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const resetHomeHtml = await resetHomeRes.text();
+  ok(
+    "permisos: volver a heredado restaura el rol",
+    permReset.status === 200 &&
+      resetHomeHtml.includes('href="/boxes/mapa"') &&
+      !resetHomeHtml.includes('href="/reportes"'),
+    `put=${permReset.status}`,
+  );
+
+  const permAudit = await dbRows(
+    `SELECT count(*)::int AS n,
+            count(*) FILTER (WHERE after->'after' ? 'box.read')::int AS reverts
+       FROM audit_logs WHERE action = 'user.permissions' AND entity_id = $1`,
+    [permEmpId],
+  );
+  ok(
+    "permisos: escrituras auditadas (incluye volver a heredado)",
+    Number(permAudit[0]?.n ?? 0) > 0 && Number(permAudit[0]?.reverts ?? 0) > 0,
+    JSON.stringify(permAudit),
+  );
+
   await api("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
@@ -990,13 +1210,112 @@ try {
     `est=${admEstRes.status} hist=${admHistRes.status}`,
   );
 
+  // ===== Turnos: cierre con usuario, reporte y detalle por turno =====
+  const abSession = await dbRows(
+    `SELECT s.id FROM parking_sessions s JOIN vehicles v ON v.id = s.vehicle_id
+      WHERE s.status = 'open' AND v.plate = 'AB1234' LIMIT 1`,
+  );
+  await api("/api/sessions/close", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: abSession[0].id, methodId: method, notes: "e2e" }),
+  });
+  const shiftClose = await api("/api/shifts/close", { method: "POST", body: JSON.stringify({ notes: "e2e fin" }) });
+  const closedRow = await dbRows(`SELECT closed_by, closed_at FROM cash_shifts WHERE id = $1`, [shiftOpen.body.shiftId]);
+  const smokeId = (await dbRows(`SELECT id FROM profiles WHERE email = $1`, [smokeEmail]))[0];
+  ok(
+    "turno cerrado con usuario de cierre",
+    shiftClose.status === 200 &&
+      closedRow[0]?.closed_by === smokeId?.id &&
+      closedRow[0]?.closed_at !== null,
+    JSON.stringify({ status: shiftClose.status, ...closedRow[0] }),
+  );
+
+  // el empleado abre y cierra su propio turno
+  // Está inactivo desde la prueba de desactivación: se reactiva y se inicia
+  // sesión como él, que es lo que la prueba dice verificar.
+  await api(`/api/users/${empId}`, { method: "PATCH", body: JSON.stringify({ isActive: true }) });
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "empleado-e2e@parking.local", password: "Nueva2026!" }),
+  });
+  const empOpen = await api("/api/shifts/open", { method: "POST", body: JSON.stringify({ notes: "e2e empleado" }) });
+  const empClose = await api("/api/shifts/close", { method: "POST", body: JSON.stringify({ notes: "e2e empleado fin" }) });
+  const empShiftRow = await dbRows(`SELECT closed_by FROM cash_shifts WHERE id = $1`, [empOpen.body?.shiftId]);
+  ok(
+    "turno: empleado abre y cierra el propio",
+    empOpen.status === 200 && empClose.status === 200 && empShiftRow[0]?.closed_by === empId,
+    JSON.stringify({ open: empOpen.status, close: empClose.status }),
+  );
+  await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: smokeEmail, password: smokePassword }),
+  });
+
+  // reporte de turnos: listado, detalle, filtro por patente y por hora
+  const shReport = await fetch(BASE + "/reportes/turnos?p=30", { headers: { cookie: cookieHeader() } });
+  const shReportHtml = await shReport.text();
+  ok(
+    "reporte de turnos con facturado y usuarios",
+    shReport.status === 200 &&
+      shReportHtml.includes("Reporte de turnos") &&
+      shReportHtml.includes("Admin E2E") &&
+      shReportHtml.includes("Facturado"),
+    `status=${shReport.status}`,
+  );
+
+  const shDetail = await fetch(BASE + "/reportes/turnos/" + shiftOpen.body.shiftId, {
+    headers: { cookie: cookieHeader() },
+  });
+  const shDetailHtml = await shDetail.text();
+  ok(
+    "detalle de turno con ingresos y egresos",
+    shDetail.status === 200 && shDetailHtml.includes("AB1234") && shDetailHtml.includes("EZE321"),
+    `status=${shDetail.status}`,
+  );
+
+  const shPlateFilter = await fetch(
+    BASE + "/reportes/turnos/" + shiftOpen.body.shiftId + "?q=NOPE",
+    { headers: { cookie: cookieHeader() } },
+  );
+  const shPlateFilterHtml = await shPlateFilter.text();
+  ok(
+    "detalle de turno filtra por patente",
+    shPlateFilter.status === 200 && !shPlateFilterHtml.includes("AB1234"),
+    `status=${shPlateFilter.status}`,
+  );
+
+  const entryHourRow = await dbRows(
+    `SELECT extract(hour FROM s.entry_at AT TIME ZONE 'America/Argentina/Cordoba')::int AS h
+       FROM parking_sessions s JOIN vehicles v ON v.id = s.vehicle_id
+      WHERE s.shift_id = $1 AND v.plate = 'EZE321' LIMIT 1`,
+    [shiftOpen.body.shiftId],
+  );
+  const entryHour = Number(entryHourRow[0]?.h);
+  const shHourFilter = await fetch(
+    BASE + `/reportes/turnos/${shiftOpen.body.shiftId}?from=${entryHour}&to=${entryHour}`,
+    { headers: { cookie: cookieHeader() } },
+  );
+  const shHourFilterHtml = await shHourFilter.text();
+  ok(
+    "detalle de turno filtra por hora de ingreso",
+    shHourFilter.status === 200 && shHourFilterHtml.includes("EZE321"),
+    `status=${shHourFilter.status} h=${entryHour}`,
+  );
+
   console.log(failures === 0 ? "\nE2E OK" : `\n${failures} FALLARON`);
 } finally {
   // limpieza
   try {
+    await dbRows(`DELETE FROM audit_logs WHERE actor_id IN (SELECT id FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM cash_shifts WHERE opened_by IN (SELECT id FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'profile' AND entity_id IN (SELECT id::text FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
     await dbRows(`DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE email = 'empleado-e2e@parking.local')`, []);
     await dbRows(`DELETE FROM profiles WHERE email = 'empleado-e2e@parking.local'`, []);
+    await dbRows(`DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM profiles WHERE email = 'supervisor-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE entity_id IN (SELECT id::text FROM profiles WHERE email = 'supervisor-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE actor_id IN (SELECT id FROM profiles WHERE email = 'supervisor-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE email = 'supervisor-e2e@parking.local')`, []);
+    await dbRows(`DELETE FROM profiles WHERE email = 'supervisor-e2e@parking.local'`, []);
     await dbRows(`DELETE FROM sync_outbox WHERE entity_type = 'parking_session' AND entity_id IN (SELECT id::text FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM print_jobs WHERE session_id IN (SELECT id FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);
     await dbRows(`DELETE FROM audit_logs WHERE action = 'ticket.reprint' AND entity_id IN (SELECT id::text FROM parking_sessions WHERE entry_notes = 'e2e' OR exit_notes = 'e2e')`, []);

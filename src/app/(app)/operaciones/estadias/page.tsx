@@ -13,6 +13,8 @@ interface OpenStay {
   entry_at: string;
   elapsed_minutes: number;
   quote_cents: string;
+  key_left: boolean;
+  damage_notes: string | null;
 }
 
 /** `ownerId` restringe a lo abierto por ese usuario (permiso `session.read_own`). */
@@ -24,6 +26,8 @@ async function loadOpenStays(ownerId?: string): Promise<OpenStay[]> {
             vt.name AS vehicle_type_name,
             b.number AS box_number,
             s.entry_at,
+            s.key_left,
+            s.damage_notes,
             GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int) AS elapsed_minutes,
             (calc_fee_breakdown(s.vehicle_type_id,
                 GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int))
@@ -94,7 +98,22 @@ async function OpenStaysTable() {
           {stays.map((s) => (
             <tr key={s.id} className="border-b border-neutral-800 last:border-0">
               <td className="px-4 py-2.5 tabular-nums text-neutral-400">#{s.ticket_number}</td>
-              <td className="px-4 py-2.5 font-semibold tracking-wide">{s.plate}</td>
+              <td className="px-4 py-2.5">
+                <span className="font-semibold tracking-wide">{s.plate}</span>
+                {s.key_left ? (
+                  <span className="ml-2 rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                    Llave
+                  </span>
+                ) : null}
+                {s.damage_notes ? (
+                  <p
+                    title={s.damage_notes}
+                    className="mt-0.5 max-w-56 truncate text-[11px] font-normal text-red-300"
+                  >
+                    Rotura: {s.damage_notes}
+                  </p>
+                ) : null}
+              </td>
               <td className="px-4 py-2.5 text-neutral-300">{s.vehicle_type_name}</td>
               <td className="px-4 py-2.5 text-neutral-300">{s.box_number}</td>
               <td className="px-4 py-2.5 tabular-nums text-neutral-400">{formatTime(s.entry_at)}</td>

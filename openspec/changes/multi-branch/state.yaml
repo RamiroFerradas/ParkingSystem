@@ -1,0 +1,30 @@
+change: multi-branch
+artifact_store: openspec
+artifact_language: en
+phases:
+  propose:
+    status: complete
+    artifact: proposal.md
+  spec:
+    status: complete
+    artifact: spec.md
+  design:
+    status: complete
+    artifact: design.md
+  tasks:
+    status: complete
+    artifact: tasks.md
+  apply:
+    status: pending
+    artifact: null
+  verify:
+    status: pending
+    artifact: null
+  archive:
+    status: pending
+    artifact: null
+next: apply
+delivery:
+  strategy: single-pr
+  size_exception: user-approved-at-preflight
+  work_units: 8

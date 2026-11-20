@@ -7,7 +7,7 @@ import { UsersManager, type ManagedUser } from "./users-manager";
 export default async function UsuariosPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!(await hasPermission(user.role, "user.manage"))) {
+  if (!(await hasPermission(user, "user.manage"))) {
     return (
       <div className="mx-auto max-w-lg">
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">

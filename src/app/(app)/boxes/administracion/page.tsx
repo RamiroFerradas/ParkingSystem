@@ -58,7 +58,7 @@ async function loadFloors(): Promise<AdminFloor[]> {
 
 export default async function AdministracionBoxesPage() {
   const user = await getSessionUser();
-  const canManage = user ? await hasPermission(user.role, "box.manage") : false;
+  const canManage = user ? await hasPermission(user, "box.manage") : false;
 
   if (!canManage) {
     return (

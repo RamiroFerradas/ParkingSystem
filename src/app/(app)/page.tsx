@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { query } from "@/lib/db/client";
 import { formatARS } from "@/lib/format";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
 import { MiniBoxMap } from "@/components/boxes/mini-box-map";
 
 /**
@@ -34,7 +36,7 @@ export default function DashboardPage() {
 
       <section aria-label="Mapa compacto de boxes" className="grid grid-cols-1 gap-4">
         <Suspense fallback={<SkeletonCard />}>
-          <MiniBoxMap />
+          <MiniBoxMapSection />
         </Suspense>
       </section>
 
@@ -72,6 +74,15 @@ export default function DashboardPage() {
       </section>
     </div>
   );
+}
+
+async function MiniBoxMapSection() {
+  // El mapa compacto muestra boxes, patentes y tickets: si el usuario tiene
+  // negado `box.read`, no se renderiza (el menú ya oculta la sección).
+  const user = await getSessionUser();
+  if (!user) return null;
+  if (!(await hasPermission(user, "box.read"))) return null;
+  return <MiniBoxMap />;
 }
 
 async function OccupancyCards() {

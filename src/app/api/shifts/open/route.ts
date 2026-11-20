@@ -3,11 +3,11 @@ import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { hasPermission } from "@/lib/auth/permissions";
 
-/** Abrir turno de caja (BR-022: manual; lo abre un usuario, lo cierra otro). */
+/** Abrir turno de caja (manual; cualquier usuario con shift.manage puede abrirlo). */
 export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "shift.manage"))) {
+  if (!(await hasPermission(user, "shift.manage"))) {
     return NextResponse.json(
       { error: "No tenés permiso para gestionar turnos de caja" },
       { status: 403 },
@@ -28,6 +28,11 @@ export async function POST(request: Request) {
        VALUES (gen_random_uuid(), $1, $2)
        RETURNING id, opened_at`,
       [user.userId, notes],
+    );
+    await query(
+      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id)
+       VALUES (gen_random_uuid(), $1, 'shift.open', 'cash_shift', $2)`,
+      [user.userId, rows[0]!.id],
     );
     return NextResponse.json({ ok: true, shiftId: rows[0]!.id, openedAt: rows[0]!.opened_at });
   } catch (err) {

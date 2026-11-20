@@ -9,7 +9,7 @@ export async function Sidebar({ user }: { user: SessionUser }) {
   // El menú muestra solo lo que el rol puede abrir: el empleado no ve
   // secciones de administración ni reportes, en vez de chocar contra
   // "Acceso restringido".
-  const allowed = await permissionsFor(user.role);
+  const allowed = await permissionsFor(user);
   const groups = filterNavGroups(NAV_GROUPS, allowed);
 
   return (

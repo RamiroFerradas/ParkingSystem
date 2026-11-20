@@ -22,6 +22,8 @@ export interface EgresoData {
   elapsedMinutes: number;
   quote: FeeBreakdown;
   methods: { id: string; name: string }[];
+  keyLeft: boolean;
+  damageNotes: string | null;
 }
 
 type Result =

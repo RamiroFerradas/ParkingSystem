@@ -28,8 +28,18 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operaciones",
     items: [
-      { label: "Registrar ingreso", href: "/operaciones/ingreso", enabled: true },
-      { label: "Registrar egreso", href: "/operaciones/egreso", enabled: true },
+      {
+        label: "Registrar ingreso",
+        href: "/operaciones/ingreso",
+        enabled: true,
+        permission: "session.open",
+      },
+      {
+        label: "Registrar egreso",
+        href: "/operaciones/egreso",
+        enabled: true,
+        permission: "session.close",
+      },
       { label: "Estadías activas", href: "/operaciones/estadias", enabled: true },
       { label: "Historial", href: "/operaciones/historial", enabled: true },
     ],
@@ -87,6 +97,12 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         label: "Ranking de boxes",
         href: "/reportes/boxes",
+        enabled: true,
+        permission: "reports.read",
+      },
+      {
+        label: "Reporte de turnos",
+        href: "/reportes/turnos",
         enabled: true,
         permission: "reports.read",
       },
@@ -150,3 +166,42 @@ export const ROLE_LABELS: Record<string, string> = {
   supervisor: "Supervisor",
   employee: "Empleado",
 };
+
+/** Sección que el administrador puede habilitar o negar por usuario. */
+export interface ConfigurableSection {
+  permission: string;
+  label: string;
+  group: string;
+}
+
+/**
+ * Fuente única del configurador de accesos: deriva de NAV_GROUPS los permisos
+ * que gobiernan secciones del menú. Varios ítems pueden compartir permiso
+ * (Tarifas y Medios de pago usan `tariff.manage`): se agrupan en una sola fila
+ * para que el conmutador no tenga dos estados contradictorios.
+ *
+ * Dashboard, Estadías activas e Historial quedan afuera a propósito: se
+ * gobiernan por sesión y por alcance de lectura (`session.read_all`/`read_own`),
+ * no por una sección habilitable.
+ */
+export function configurableSections(): ConfigurableSection[] {
+  const byPermission = new Map<string, ConfigurableSection>();
+  for (const group of NAV_GROUPS) {
+    for (const item of group.items) {
+      if (!item.permission) continue;
+      const existing = byPermission.get(item.permission);
+      if (existing) {
+        if (!existing.label.split(", ").includes(item.label)) {
+          existing.label = `${existing.label}, ${item.label}`;
+        }
+        continue;
+      }
+      byPermission.set(item.permission, {
+        permission: item.permission,
+        label: item.label,
+        group: group.label,
+      });
+    }
+  }
+  return [...byPermission.values()];
+}

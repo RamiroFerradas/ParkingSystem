@@ -127,6 +127,8 @@ retroactiva** (BR-006/BR-010).
 | status | enum(open, closed, annulled) | |
 | opened_by / closed_by | FK profiles | empleado responsable |
 | entry_notes / exit_notes | text | observaciones |
+| key_left | boolean | la llave quedó en el vehículo al ingresar (default false) |
+| damage_notes | text | roturas o daños declarados al ingresar |
 | duration_minutes | integer | al cerrar |
 | base_amount_cents | bigint | tarifa base al momento |
 | final_amount_cents | bigint | tras especial/ajustes |

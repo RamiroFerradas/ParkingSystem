@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
 
-  if (!(await hasPermission(user.role, "box.manage"))) {
+  if (!(await hasPermission(user, "box.manage"))) {
     return NextResponse.json(
       { error: "No tenés permiso para administrar boxes" },
       { status: 403 },

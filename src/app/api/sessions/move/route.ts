@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
 
-  if (!(await hasPermission(user.role, "session.open"))) {
+  if (!(await hasPermission(user, "session.open"))) {
     return NextResponse.json(
       { error: "No tenés permiso para mover vehículos" },
       { status: 403 },

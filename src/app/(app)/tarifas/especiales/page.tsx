@@ -7,7 +7,7 @@ import { SpecialsManager } from "./specials-manager";
 export default async function TarifasEspecialesPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!(await hasPermission(user.role, "tariff.manage"))) {
+  if (!(await hasPermission(user, "tariff.manage"))) {
     return (
       <div className="mx-auto max-w-lg">
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">

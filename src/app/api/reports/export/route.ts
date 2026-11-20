@@ -18,7 +18,7 @@ const PERIODS: { key: string; where: (col: string) => string }[] = [
 export async function GET(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "reports.read"))) {
+  if (!(await hasPermission(user, "reports.read"))) {
     return new Response("No tenés permiso", { status: 403 });
   }
 

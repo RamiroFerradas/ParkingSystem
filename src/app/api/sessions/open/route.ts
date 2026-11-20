@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { hasPermission } from "@/lib/auth/permissions";
 import { normalizePlate } from "@/lib/plate";
 
 interface OpenResult {
@@ -59,6 +60,12 @@ function vehicleParkedResponse(
 export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
+  if (!(await hasPermission(user, "session.open"))) {
+    return NextResponse.json(
+      { error: "No tenés permiso para registrar ingresos" },
+      { status: 403 },
+    );
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -67,7 +74,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
   }
 
-  const { sessionId, plate, vehicleTypeId, boxId, notes } = body;
+  const { sessionId, plate, vehicleTypeId, boxId, notes, keyLeft, damageNotes } = body;
   if (
     typeof sessionId !== "string" ||
     typeof plate !== "string" ||
@@ -85,6 +92,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Patente inválida" }, { status: 400 });
   }
 
+  // Condición declarada al ingresar: llave que queda en el auto y roturas previas.
+  const cleanDamage =
+    typeof damageNotes === "string" ? damageNotes.trim().slice(0, 500).trim() : "";
+
   // Si la patente ya está estacionada, no se crea una segunda estadía: la UI
   // necesita saber dónde está para ofrecer moverla al box elegido.
   const parked = await findParked(cleanPlate);
@@ -94,7 +105,9 @@ export async function POST(request: Request) {
 
   try {
     const rows = await query<{ r: OpenResult }>(
-      `SELECT open_session($1, $2, $3, $4, $5, $6) AS r`,
+      `SELECT open_session($1, $2, $3, $4, $5, $6,
+                           p_key_left => ($7::boolean),
+                           p_damage_notes => ($8::text)) AS r`,
       [
         sessionId,
         cleanPlate,
@@ -102,6 +115,8 @@ export async function POST(request: Request) {
         boxId,
         user.userId,
         typeof notes === "string" && notes.length > 0 ? notes : null,
+        keyLeft === true,
+        cleanDamage.length > 0 ? cleanDamage : null,
       ],
     );
     const r = rows[0]!.r;
@@ -130,6 +145,17 @@ export async function POST(request: Request) {
           error: number
             ? `El box ${number} ya está ocupado.`
             : "El box ya está ocupado.",
+        },
+        { status: 409 },
+      );
+    }
+
+    // Regla S1: no se registra un ingreso sin turno de caja abierto.
+    if (message.includes("No hay turno de caja abierto")) {
+      return NextResponse.json(
+        {
+          code: "NO_OPEN_SHIFT",
+          error: "Abrí un turno de caja antes de registrar un ingreso.",
         },
         { status: 409 },
       );

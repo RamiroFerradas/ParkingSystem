@@ -16,7 +16,7 @@ interface BoxRow {
 async function requireAdmin() {
   const { user, error } = await requireUser();
   if (error) return { user: null, response: error };
-  if (!(await hasPermission(user.role, "box.manage"))) {
+  if (!(await hasPermission(user, "box.manage"))) {
     return {
       user: null,
       response: NextResponse.json(

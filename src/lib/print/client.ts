@@ -21,6 +21,8 @@ export interface SessionTicketPayload {
   method_name: string | null;
   tariff_snapshot: Record<string, unknown> | null;
   entry_notes: string | null;
+  key_left: boolean;
+  damage_notes: string | null;
 }
 
 async function api(method: string, url: string, body?: unknown) {
@@ -92,6 +94,8 @@ export async function printSessionTicket(
             boxNumber: s.box_number,
             entryAt: s.entry_at,
             notes: s.entry_notes,
+            keyLeft: s.key_left,
+            damageNotes: s.damage_notes,
             reprint: mode === "reprint",
           })
         : buildExitReceipt({

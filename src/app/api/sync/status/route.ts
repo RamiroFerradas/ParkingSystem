@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 export async function GET() {
   const { user, error } = await requireUser();
   if (error) return error;
-  if (!(await hasPermission(user.role, "sync.manage"))) {
+  if (!(await hasPermission(user, "sync.manage"))) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
   try {

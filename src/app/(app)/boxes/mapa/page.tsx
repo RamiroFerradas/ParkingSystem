@@ -1,4 +1,5 @@
 import { query } from "@/lib/db/client";
+import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { formatElapsed } from "@/lib/format";
@@ -78,7 +79,23 @@ export default async function MapaBoxesPage({
   const params = await searchParams;
   const initialBoxId = typeof params.box === "string" ? params.box : null;
   const user = await getSessionUser();
-  const canManage = user ? await hasPermission(user.role, "box.manage") : false;
+  if (!user) redirect("/login");
+  // El menú anuncia este ítem con `box.read`: la página tiene que exigir el
+  // mismo permiso para que negarlo desde el configurador no deje la puerta
+  // abierta por URL.
+  if (!(await hasPermission(user, "box.read"))) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
+          <p className="mt-1 text-sm text-neutral-300">
+            No tenés habilitado el mapa de boxes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  const canManage = await hasPermission(user, "box.manage");
   const [boxes, inactiveBoxes, floorOptions] = await Promise.all([
     loadBoxes(),
     loadInactiveBoxes(),

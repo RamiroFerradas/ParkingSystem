@@ -6,7 +6,7 @@ import { VehiclesList } from "./vehicles-list";
 export default async function VehiculosPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!(await hasPermission(user!.role, "vehicle.read_all"))) {
+  if (!(await hasPermission(user!, "vehicle.read_all"))) {
     return (
       <div className="mx-auto max-w-lg">
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">

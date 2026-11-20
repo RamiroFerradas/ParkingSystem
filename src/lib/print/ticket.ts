@@ -21,6 +21,10 @@ export interface EntryTicketData {
   boxNumber: string;
   entryAt: string; // ISO
   notes?: string | null;
+  /** true = el cliente deja la llave dentro del vehículo. */
+  keyLeft?: boolean;
+  /** Roturas declaradas al ingresar (texto libre). */
+  damageNotes?: string | null;
   reprint?: boolean;
 }
 
@@ -52,6 +56,35 @@ function fold(text: string): string {
 function pad(text: string, width = WIDTH): string {
   const t = fold(text);
   return t.length >= width ? t.slice(0, width) : t + " ".repeat(width - t.length);
+}
+
+/** Envuelve un texto libre en líneas de `width`, con sangría alineada al label. */
+function block(label: string, value: string, width = WIDTH): string[] {
+  const indent = " ".repeat(label.length);
+  // El textarea permite Enter: se colapsan los blancos para no pegar palabras.
+  const words = fold(value.replace(/\s+/g, " ")).split(" ").filter(Boolean);
+  if (words.length === 0) return [];
+  // Un token más largo que la línea se parte en trozos, si no `pad()` lo truncaría.
+  const room = width - label.length;
+  const chunks = words.flatMap((word) => {
+    if (word.length <= room) return [word];
+    const parts: string[] = [];
+    for (let i = 0; i < word.length; i += room) parts.push(word.slice(i, i + room));
+    return parts;
+  });
+  const lines: string[] = [];
+  let current = label;
+  for (const word of chunks) {
+    const gap = current.endsWith(" ") ? 0 : 1;
+    if (current.length + gap + word.length > width) {
+      lines.push(pad(current));
+      current = indent + word;
+    } else {
+      current += " ".repeat(gap) + word;
+    }
+  }
+  lines.push(pad(current));
+  return lines;
 }
 
 /** Dos columnas: izquierda alineada, derecha alineada a la derecha. */
@@ -125,6 +158,10 @@ export function buildEntryTicket(d: EntryTicketData): Uint8Array {
   text(bytes, twoCol("Tipo:", d.vehicleType) + "\n");
   text(bytes, twoCol("Box:", d.boxNumber) + "\n");
   text(bytes, twoCol("Ingreso:", stamp(d.entryAt)) + "\n");
+  text(bytes, twoCol("Llave:", d.keyLeft ? "EN EL VEHICULO" : "RETIRADA") + "\n");
+  if (d.damageNotes) {
+    for (const line of block("Rotura: ", d.damageNotes)) text(bytes, line + "\n");
+  }
   if (d.notes) text(bytes, pad(`Obs: ${d.notes}`) + "\n");
   rule(bytes);
   text(bytes, center("Conserve este ticket") + "\n");
