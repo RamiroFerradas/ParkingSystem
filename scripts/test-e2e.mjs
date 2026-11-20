@@ -31,7 +31,7 @@ async function api(path, options = {}) {
 }
 
 let smokeBranchId = null;
-async function selectBranch() {
+async function smokeBranch() {
   if (!smokeBranchId) {
     const row = (
       await dbRows(`SELECT id FROM branches WHERE is_active ORDER BY created_at LIMIT 1`)
@@ -39,6 +39,20 @@ async function selectBranch() {
     if (!row) throw new Error("el e2e necesita una sucursal activa");
     smokeBranchId = row.id;
   }
+  return smokeBranchId;
+}
+
+/** Un usuario nuevo no tiene sucursal: sin membresía ninguna API lo deja operar. */
+async function assignBranch(userId, role) {
+  await dbRows(
+    `INSERT INTO user_branches (user_id, branch_id, role)
+     VALUES ($1, $2, $3::user_role) ON CONFLICT DO NOTHING`,
+    [userId, await smokeBranch(), role],
+  );
+}
+
+async function selectBranch() {
+  const branchId = await smokeBranch();
   const res = await fetch(BASE + "/api/auth/switch-branch", {
     method: "POST",
     headers: { "Content-Type": "application/json", cookie: cookieHeader() },
@@ -577,13 +591,7 @@ try {
 
   // Un usuario nuevo no tiene sucursal asignada y no podría operar: lo hacemos
   // miembro de la sucursal del smoke para poder probar su sesión.
-  await dbRows(
-    `INSERT INTO user_branches (user_id, branch_id, role)
-     SELECT $1, b.id, 'employee'::user_role FROM branches b
-      WHERE b.is_active ORDER BY b.created_at LIMIT 1
-     ON CONFLICT DO NOTHING`,
-    [newEmp.body.user.id],
-  );
+  await assignBranch(newEmp.body.user.id, "employee");
 
   const dupUser = await api("/api/users", {
     method: "POST",
@@ -807,6 +815,7 @@ try {
     }),
   });
   const supId = newSup.body?.user?.id;
+  await assignBranch(supId, "supervisor");
   await api(`/api/users/${supId}/permissions`, {
     method: "PUT",
     body: JSON.stringify({ overrides: [{ permission: "user.manage", allowed: true }] }),
