@@ -89,8 +89,8 @@ export default async function TurnoDetallePage({
             cs.opened_at::text,
             cs.closed_at::text,
             GREATEST(0, round(extract(epoch FROM (COALESCE(cs.closed_at, now()) - cs.opened_at)) / 60))::text AS minutes,
-            po.full_name AS opened_by_name,
-            pc.full_name AS closed_by_name,
+            po.email AS opened_by_name,
+            pc.email AS closed_by_name,
             cs.opening_notes,
             cs.closing_notes
        FROM cash_shifts cs

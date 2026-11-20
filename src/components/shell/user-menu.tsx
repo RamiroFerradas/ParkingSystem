@@ -12,6 +12,15 @@ interface Props {
   shift: OpenShiftSummary | null;
 }
 
+/** Iniciales para el avatar del header en el teléfono (dos letras, sin apellido largo). */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const [first = "", second = ""] = parts;
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  return (first.charAt(0) + second.charAt(0)).toUpperCase();
+}
+
 /**
  * Menú de usuario del header. "Salir" intercepta el logout cuando hay un turno
  * abierto: es el momento real en que la gente se olvida de cerrarlo.
@@ -92,9 +101,13 @@ export function UserMenu({ name, roleLabel, branchName, shift }: Props) {
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="relative z-50 flex items-center gap-2 rounded-full border border-neutral-700 bg-neutral-800 py-1 pl-3 pr-2 text-xs font-medium text-neutral-200 hover:border-neutral-500"
+        aria-label={roleLabel}
+        className="relative z-50 flex h-10 w-10 items-center justify-center rounded-full border border-neutral-700 bg-neutral-800 text-xs font-medium text-neutral-200 hover:border-neutral-500 lg:h-auto lg:w-auto lg:justify-start lg:gap-2 lg:py-1 lg:pl-3 lg:pr-2"
       >
-        <span className="max-w-32 truncate">{roleLabel}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide lg:hidden">
+          {initials(name)}
+        </span>
+        <span className="hidden max-w-32 truncate lg:inline">{roleLabel}</span>
         <svg
           width="12"
           height="12"
@@ -102,7 +115,7 @@ export function UserMenu({ name, roleLabel, branchName, shift }: Props) {
           fill="none"
           stroke="currentColor"
           strokeWidth="2.5"
-          className={`shrink-0 text-neutral-500 transition ${open ? "rotate-180" : ""}`}
+          className={`hidden shrink-0 text-neutral-500 transition lg:block ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
         >
           <path d="m6 9 6 6 6-6" />
@@ -112,7 +125,7 @@ export function UserMenu({ name, roleLabel, branchName, shift }: Props) {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
+          className="absolute right-0 top-full z-50 mt-1 w-[min(14rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
           <div className="px-3 py-2">
             <p className="truncate text-sm font-medium text-neutral-100">{name}</p>

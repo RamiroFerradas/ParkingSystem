@@ -23,7 +23,7 @@ export async function loadOpenShiftSummary(
     `SELECT cs.id,
             (floor(extract(epoch FROM cs.opened_at)) * 1000)::bigint::text AS opened_at_ms,
             cs.opened_by,
-            p.full_name AS opened_by_name,
+            p.email AS opened_by_name,
             (SELECT COALESCE(SUM(amount_charged_cents), 0)
                FROM payments WHERE shift_id = cs.id)::text AS collected,
             (SELECT count(*) FROM parking_sessions

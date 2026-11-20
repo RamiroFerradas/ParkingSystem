@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       before: unknown;
       after: unknown;
     }>(
-      `SELECT a.id::text, a.occurred_at::text, pr.full_name AS actor_name, a.action,
+      `SELECT a.id::text, a.occurred_at::text, pr.email AS actor_name, a.action,
               a.entity_type, a.entity_id, a.before, a.after
          FROM audit_logs a
          LEFT JOIN profiles pr ON pr.id = a.actor_id

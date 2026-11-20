@@ -23,7 +23,7 @@ async function loadShift(): Promise<ShiftView> {
     opened_by: string;
     opened_by_id: string;
   }>(
-    `SELECT cs.id, cs.opened_at::text, p.full_name AS opened_by, cs.opened_by AS opened_by_id
+    `SELECT cs.id, cs.opened_at::text, p.email AS opened_by, cs.opened_by AS opened_by_id
        FROM cash_shifts cs
        JOIN profiles p ON p.id = cs.opened_by
       WHERE cs.status = 'open'

@@ -49,7 +49,7 @@ export async function GET() {
       `SELECT s.id, v.plate, vt.name AS vehicle_type, t.name AS plan_name,
               s.starts_on::text, s.ends_on::text, s.amount_cents::text,
               s.status::text, s.notes, s.created_at::text,
-              p.full_name AS created_by_name,
+              p.email AS created_by_name,
               (s.status = 'active'
                AND s.starts_on <= (now() AT TIME ZONE '${TZ}')::date
                AND s.ends_on >= (now() AT TIME ZONE '${TZ}')::date) AS vigente

@@ -171,7 +171,7 @@ export default async function ReportesPage({
         [branchId],
       ),
       query<{ operator: string; sessions: string; collected: string }>(
-        `SELECT COALESCE(pr.full_name, '—') AS operator, count(*)::text AS sessions,
+        `SELECT COALESCE(pr.email, '—') AS operator, count(*)::text AS sessions,
                 COALESCE(sum(p.amount_charged_cents), 0)::text AS collected
            FROM payments p
            JOIN parking_sessions s ON s.id = p.session_id
