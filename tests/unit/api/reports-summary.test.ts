@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/reports/summary/route";
+import type { SummaryTotals } from "@/app/api/reports/summary/route";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { query } from "@/lib/db/client";
@@ -56,6 +57,29 @@ describe("GET /api/reports/summary", () => {
     });
     expect(mockPermission).toHaveBeenCalledWith(user, "reports.read");
     expect(mockQuery.mock.calls.map((c) => c[1])).toEqual([["30"], ["30"], ["30"]]);
+  });
+
+  it("exposes only the totals columns the SQL actually selects", async () => {
+    // B6: `annulled` was declared on the totals type but never selected, so it
+    // never reached the JSON. Nobody consumes it (grep "annulled" src/), so the
+    // fix drops the phantom field instead of adding a query.
+    const res = await get();
+
+    const body = (await res.json()) as { totals: Record<string, unknown> };
+    expect(Object.keys(body.totals).sort()).toEqual(["collected", "sessions"]);
+    expect(body.totals).not.toHaveProperty("annulled");
+    const totalsSql = String(mockQuery.mock.calls[2]?.[0]);
+    expect(totalsSql).not.toContain("annulled");
+  });
+
+  it("declares only the totals keys that the response carries", () => {
+    // Type-level guard: fails `tsc --noEmit` if a phantom key is declared again.
+    type Keys = keyof SummaryTotals;
+    type Expected = "sessions" | "collected";
+    type Exact = [Keys] extends [Expected] ? ([Expected] extends [Keys] ? true : false) : false;
+    const exact: Exact = true;
+
+    expect(exact).toBe(true);
   });
 
   it("honours an explicit days window", async () => {

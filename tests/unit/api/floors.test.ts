@@ -108,10 +108,13 @@ describe("POST /api/floors", () => {
 
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ ok: true, floor });
+    // A2: the audit insert now runs inside the same transaction as the floor
+    // and its boxes, so COMMIT is the last statement again.
     expect(client.query.mock.calls.map(([sql]) => String(sql))).toEqual([
       "BEGIN",
       expect.stringContaining("INSERT INTO parking_floors"),
       expect.stringContaining("INSERT INTO parking_boxes"),
+      expect.stringContaining("INSERT INTO audit_logs"),
       "COMMIT",
     ]);
     const floorInsert = client.query.mock.calls.find(([sql]) =>
@@ -122,9 +125,11 @@ describe("POST /api/floors", () => {
       String(sql).includes("INSERT INTO parking_boxes"),
     );
     expect(boxesInsert?.[1]).toEqual(["floor-1", "branch-1", ["A1-01", "A1-02", "A1-03"]]);
-    expect(
-      db.query.mock.calls.some(([sql]) => String(sql).includes("'floor.create'")),
-    ).toBe(true);
+    const auditInsert = client.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO audit_logs"),
+    );
+    expect(auditInsert?.[1]).toEqual(["user-1", "branch-1", "floor-1", "Planta Baja", 3]);
+    expect(db.query).not.toHaveBeenCalled();
   });
 
   it("creates a floor with no boxes when boxCount is 0", async () => {
@@ -156,6 +161,31 @@ describe("POST /api/floors", () => {
       error: "Ya existe un piso con ese nombre o un box con ese número",
     });
     expect(client.query.mock.calls.map(([sql]) => String(sql))).toContain("ROLLBACK");
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("rolls the floor and boxes back when the audit insert fails", async () => {
+    // A2: the audit insert must share the transaction, otherwise the floor and
+    // its boxes stay committed while the client gets a 401.
+    const client = fakeClient((sql) => {
+      if (sql.includes("INSERT INTO parking_floors")) return { rows: [floor] };
+      if (sql.includes("INSERT INTO audit_logs")) {
+        throw new Error('violates foreign key constraint "audit_logs_actor_id_fkey"');
+      }
+      return { rows: [] };
+    });
+    db.pool.connect.mockResolvedValue(client);
+
+    const res = await POST(jsonRequest(url, "POST", { name: "Planta Baja", boxCount: 2, prefix: "A" }));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      error: "Tu sesión ya no es válida. Volvé a iniciar sesión.",
+    });
+    const statements = client.query.mock.calls.map(([sql]) => String(sql));
+    expect(statements).toContain("ROLLBACK");
+    expect(statements).not.toContain("COMMIT");
+    expect(statements.at(-1)).toBe("ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
 });

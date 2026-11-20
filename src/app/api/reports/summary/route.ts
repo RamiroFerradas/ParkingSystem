@@ -17,6 +17,15 @@ interface MethodRow {
   collected: string;
 }
 
+/**
+ * Totales del período. Solo las columnas que selecciona la SQL: no existe
+ * `annulled` (ninguna consulta lo devuelve ni ningún consumidor lo lee).
+ */
+export interface SummaryTotals {
+  sessions: string;
+  collected: string;
+}
+
 export async function GET(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
@@ -48,7 +57,7 @@ export async function GET(request: Request) {
           GROUP BY m.name ORDER BY sum(p.amount_charged_cents) DESC`,
         [String(days)],
       ),
-      query<{ sessions: string; collected: string; annulled: string }>(
+      query<SummaryTotals>(
         `SELECT count(*)::text AS sessions,
                 coalesce(sum(p.amount_charged_cents), 0)::text AS collected
            FROM payments p

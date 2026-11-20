@@ -94,6 +94,14 @@ export async function POST(request: Request) {
         `INSERT INTO auth_credentials (user_id, password_hash) VALUES ($1, $2)`,
         [profile.rows[0]!.id, passwordHash],
       );
+      // El alta y su auditoría comparten transacción: si el actor ya no existe,
+      // no queda un usuario creado sin rastro (ni un 409 en el reintento).
+      await client.query(
+        `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
+         VALUES (gen_random_uuid(), $1, 'user.create', 'profile', $2,
+                 jsonb_build_object('email', $3::text, 'role', $4::text))`,
+        [user.userId, profile.rows[0]!.id, cleanEmail, role],
+      );
       await client.query("COMMIT");
       created = profile.rows[0]!;
     } catch (err) {
@@ -102,13 +110,6 @@ export async function POST(request: Request) {
     } finally {
       client.release();
     }
-
-    await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'user.create', 'profile', $2,
-               jsonb_build_object('email', $3::text, 'role', $4::text))`,
-      [user.userId, created.id, cleanEmail, role],
-    );
 
     return NextResponse.json({ ok: true, user: created }, { status: 201 });
   } catch (err) {

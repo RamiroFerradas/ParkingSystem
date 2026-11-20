@@ -79,6 +79,14 @@ export async function POST(request: Request) {
           [floorId, context!.branchId, boxes],
         );
       }
+      // Piso, boxes y auditoría en la misma transacción: si falla el log, no
+      // queda un piso creado sin rastro ni un 409 en el reintento.
+      await client.query(
+        `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+         VALUES (gen_random_uuid(), $1, $2, 'floor.create', 'parking_floor', $3,
+                 jsonb_build_object('name', $4::text, 'boxes_created', $5::int))`,
+        [context!.user.userId, context!.branchId, floorId, name, boxCount],
+      );
       await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK");
@@ -86,13 +94,6 @@ export async function POST(request: Request) {
     } finally {
       client.release();
     }
-
-    await query(
-      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, $2, 'floor.create', 'parking_floor', $3,
-               jsonb_build_object('name', $4::text, 'boxes_created', $5::int))`,
-      [context!.user.userId, context!.branchId, floorId, name, boxCount],
-    );
 
     return NextResponse.json({ ok: true, floor }, { status: 201 });
   } catch (err) {

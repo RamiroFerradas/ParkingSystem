@@ -159,10 +159,13 @@ describe("POST /api/users", () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ ok: true, user: created });
     expect(argon.hash).toHaveBeenCalledWith("supersecret");
+    // A1: the audit insert now runs inside the same transaction as the profile
+    // and the credentials, so COMMIT is the last statement again.
     expect(client.query.mock.calls.map(([sql]) => String(sql))).toEqual([
       "BEGIN",
       expect.stringContaining("INSERT INTO profiles"),
       expect.stringContaining("INSERT INTO auth_credentials"),
+      expect.stringContaining("INSERT INTO audit_logs"),
       "COMMIT",
     ]);
     expect(client.release).toHaveBeenCalledOnce();
@@ -170,7 +173,11 @@ describe("POST /api/users", () => {
       String(sql).includes("INSERT INTO profiles"),
     );
     expect(profileInsert?.[1]).toEqual(["nuevo@example.com", "Nuevo Empleado", "employee"]);
-    expect(db.query.mock.calls.some(([sql]) => String(sql).includes("'user.create'"))).toBe(true);
+    const auditInsert = client.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO audit_logs"),
+    );
+    expect(auditInsert?.[1]).toEqual(["user-1", "new-user", "nuevo@example.com", "employee"]);
+    expect(db.query).not.toHaveBeenCalled();
   });
 
   it("returns 409 on a unique email violation and rolls back", async () => {
@@ -188,15 +195,17 @@ describe("POST /api/users", () => {
     expect(client.release).toHaveBeenCalledOnce();
   });
 
-  it("maps a stale actor foreign key to a 401 session error", async () => {
+  it("maps a stale actor foreign key to a 401 and rolls the whole create back", async () => {
+    // A1: the audit insert must share the transaction, otherwise a stale actor
+    // leaves the profile + credentials committed and the client gets a 401.
     const client = fakeClient((sql) => {
       if (sql.includes("INSERT INTO profiles")) return { rows: [created] };
+      if (sql.includes("INSERT INTO audit_logs")) {
+        throw new Error('violates foreign key constraint "audit_logs_actor_id_fkey"');
+      }
       return { rows: [] };
     });
     db.pool.connect.mockResolvedValue(client);
-    db.query.mockRejectedValue(
-      new Error('violates foreign key constraint "audit_logs_actor_id_fkey"'),
-    );
 
     const res = await POST(jsonRequest("http://localhost/api/users", "POST", payload));
 
@@ -204,5 +213,10 @@ describe("POST /api/users", () => {
     expect(await res.json()).toEqual({
       error: "Tu sesión ya no es válida. Volvé a iniciar sesión.",
     });
+    const statements = client.query.mock.calls.map(([sql]) => String(sql));
+    expect(statements).toContain("ROLLBACK");
+    expect(statements).not.toContain("COMMIT");
+    expect(statements.at(-1)).toBe("ROLLBACK");
+    expect(client.release).toHaveBeenCalledOnce();
   });
 });
