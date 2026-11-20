@@ -14,27 +14,43 @@ interface PendingJob {
 }
 
 /** Cola de impresión con reintentos: reintentar SIEMPRE marca el mismo job (F2). */
+async function fetchPendingJobs(): Promise<PendingJob[]> {
+  const [pending, failed] = await Promise.all([
+    fetch("/api/print-jobs?status=pending").then((r) => r.json()),
+    fetch("/api/print-jobs?status=error").then((r) => r.json()),
+  ]);
+  return [...(pending.jobs ?? []), ...(failed.jobs ?? [])];
+}
+
 export function PrintQueuePanel({ refreshKey }: { refreshKey?: number }) {
   const [jobs, setJobs] = useState<PendingJob[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    setError(null);
     try {
-      const [pending, failed] = await Promise.all([
-        fetch("/api/print-jobs?status=pending").then((r) => r.json()),
-        fetch("/api/print-jobs?status=error").then((r) => r.json()),
-      ]);
-      setJobs([...(pending.jobs ?? []), ...(failed.jobs ?? [])]);
+      setJobs(await fetchPendingJobs());
+      setError(null);
     } catch {
       setError("No se pudo cargar la cola de impresión");
     }
   }, []);
 
   useEffect(() => {
-    void reload();
-  }, [reload, refreshKey]);
+    let cancelled = false;
+    fetchPendingJobs()
+      .then((next) => {
+        if (cancelled) return;
+        setJobs(next);
+        setError(null);
+      })
+      .catch(() => {
+        if (!cancelled) setError("No se pudo cargar la cola de impresión");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   async function retry(job: PendingJob) {
     setBusyId(job.id);

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { BranchOption } from "./branch-pill";
 
 export function BranchPicker({ options }: { options: BranchOption[] }) {
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +23,8 @@ export function BranchPicker({ options }: { options: BranchOption[] }) {
         setBusy(null);
         return;
       }
-      window.location.assign("/");
+      router.push("/");
+      router.refresh();
     } catch {
       setError("No se pudo seleccionar la sucursal.");
       setBusy(null);

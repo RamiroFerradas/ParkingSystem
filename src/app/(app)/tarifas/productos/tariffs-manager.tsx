@@ -333,6 +333,9 @@ function TariffRow({
   const [rowError, setRowError] = useState<string | null>(null);
 
   const validity = validityOf(t);
+  // Comparar una fecha guardada con "ahora" es intencionalmente impuro: el
+  // estado de vencimiento depende del reloj, no de un valor estable de render.
+  // eslint-disable-next-line react-hooks/purity
   const expired = t.valid_to !== null && new Date(t.valid_to).getTime() <= Date.now();
 
   async function saveAmount() {
