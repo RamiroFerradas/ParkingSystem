@@ -80,6 +80,10 @@ async function deleteSmokeAdmin() {
   await dbRows(`DELETE FROM profiles WHERE email = $1`, [smokeEmail]);
 }
 
+// Tarifas creadas por el test (incluye bloques sin código, que no se pueden
+// filtrar por `code` en la limpieza).
+const createdTariffIds = [];
+
 try {
   // login
   await createSmokeAdmin();
@@ -670,6 +674,100 @@ try {
   });
   ok("desactivar tarifa 200", deactTariff.status === 200, JSON.stringify(deactTariff.body));
 
+  // ===== E2: tarifario rediseñado (bloques por vehículo + vigencia) =====
+  const bikeType = (await dbRows(`SELECT id FROM vehicle_types WHERE code = 'BICICLETA'`))[0];
+  const plainBlock = await api("/api/tariffs", {
+    method: "POST",
+    body: JSON.stringify({ vehicleTypeId: bikeType.id, durationMinutes: 30, amountCents: 12300 }),
+  });
+  ok("alta de bloque sin código ni nombre 201", plainBlock.status === 201 && plainBlock.body.id, JSON.stringify(plainBlock.body));
+  createdTariffIds.push(plainBlock.body.id);
+  const plainRow = (await (await api("/api/tariffs")).body.tariffs).find((t) => t.id === plainBlock.body.id);
+  ok(
+    "bloque: nombre autogenerado, sin código y vigencia fija",
+    plainRow?.name === "Bicicleta 30 min" && plainRow?.code === null && plainRow?.valid_to === null,
+    JSON.stringify(plainRow),
+  );
+
+  const nowDate = new Date();
+  const tempFrom = new Date(nowDate.getTime() - 3600_000);
+  const tempTo = new Date(nowDate.getTime() + 3600_000);
+  const tempBlock = await api("/api/tariffs", {
+    method: "POST",
+    body: JSON.stringify({
+      vehicleTypeId: bikeType.id,
+      durationMinutes: 60,
+      amountCents: 99900,
+      validFrom: tempFrom.toISOString(),
+      validTo: tempTo.toISOString(),
+    }),
+  });
+  ok("alta de bloque temporal 201", tempBlock.status === 201 && tempBlock.body.id, JSON.stringify(tempBlock.body));
+  createdTariffIds.push(tempBlock.body.id);
+  const tempRow = (await (await api("/api/tariffs")).body.tariffs).find((t) => t.id === tempBlock.body.id);
+  ok(
+    "bloque temporal devuelve su vigencia",
+    Boolean(tempRow?.valid_to) && tempRow?.valid_to_local,
+    JSON.stringify(tempRow),
+  );
+
+  const badValidity = await api("/api/tariffs", {
+    method: "PATCH",
+    body: JSON.stringify({
+      id: tempBlock.body.id,
+      validFrom: tempTo.toISOString(),
+      validTo: tempFrom.toISOString(),
+    }),
+  });
+  ok("vigencia invertida 400", badValidity.status === 400, JSON.stringify(badValidity.body));
+
+  const backToFixed = await api("/api/tariffs", {
+    method: "PATCH",
+    body: JSON.stringify({ id: tempBlock.body.id, validFrom: tempFrom.toISOString(), validTo: null }),
+  });
+  const fixedRow = (await (await api("/api/tariffs")).body.tariffs).find((t) => t.id === tempBlock.body.id);
+  ok(
+    "volver a vigencia fija 200",
+    backToFixed.status === 200 && fixedRow?.valid_to === null,
+    JSON.stringify({ status: backToFixed.status, valid_to: fixedRow?.valid_to }),
+  );
+
+  // Precedencia en el cobro: temporal vigente > fija, y al vencer vuelve la fija.
+  const autoTariffId = autoId2;
+  const calc = async (minutes) =>
+    Number((await dbRows(`SELECT (calc_fee_breakdown($1::uuid, $2)->>'total_cents')::bigint AS c`, [autoTariffId, minutes]))[0].c);
+  const fixedCents = await calc(60);
+  const tempAuto = await dbRows(
+    `INSERT INTO parking_tariffs (name, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from, valid_to)
+     VALUES ('E2E temporal AUTO', $1, 60, 'flat', 999900, now() - interval '1 hour', now() + interval '1 hour')
+     RETURNING id`,
+    [autoTariffId],
+  );
+  createdTariffIds.push(tempAuto[0].id);
+  ok("cálculo: temporal vigente pisa a la fija", (await calc(60)) === 999900, `fixed=${fixedCents}`);
+  await dbRows(`UPDATE parking_tariffs SET valid_to = now() - interval '1 minute' WHERE id = $1`, [tempAuto[0].id]);
+  ok("cálculo: temporal vencida vuelve a la fija", (await calc(60)) === fixedCents);
+  const futureOnly = await dbRows(
+    `INSERT INTO parking_tariffs (name, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from)
+     VALUES ('E2E futura AUTO', $1, 60, 'flat', 777700, now() + interval '1 day')
+     RETURNING id`,
+    [autoTariffId],
+  );
+  createdTariffIds.push(futureOnly[0].id);
+  ok("cálculo: tarifa futura no se aplica antes de tiempo", (await calc(60)) === fixedCents);
+
+  const admTariffsHtml = await (
+    await fetch(BASE + "/tarifas/productos", { headers: { cookie: cookieHeader() } })
+  ).text();
+  ok(
+    "UI tarifas: agrupada por vehículo y sin código",
+    admTariffsHtml.includes("Tarifas por vehículo") &&
+      admTariffsHtml.includes("Bicicleta") &&
+      admTariffsHtml.includes("Agregar bloque") &&
+      !admTariffsHtml.includes("Código"),
+    `len=${admTariffsHtml.length}`,
+  );
+
   const now = new Date();
   const in1h = new Date(now.getTime() + 3600_000);
   const iso = (d) => d.toISOString();
@@ -869,6 +967,8 @@ try {
     await dbRows(`DELETE FROM parking_floors WHERE name LIKE 'Piso E2E%'`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'vehicle_type' AND entity_id IN (SELECT id::text FROM vehicle_types WHERE code = 'CAMIONETA')`, []);
     await dbRows(`DELETE FROM vehicle_types WHERE code = 'CAMIONETA'`, []);
+    await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'parking_tariff' AND entity_id IN (SELECT id::text FROM parking_tariffs WHERE id = ANY($1::uuid[]))`, [createdTariffIds]);
+    await dbRows(`DELETE FROM parking_tariffs WHERE id = ANY($1::uuid[])`, [createdTariffIds]);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'parking_tariff' AND entity_id IN (SELECT id::text FROM parking_tariffs WHERE code = 'E2E')`, []);
     await dbRows(`DELETE FROM parking_tariffs WHERE code = 'E2E'`, []);
     await dbRows(`DELETE FROM audit_logs WHERE entity_type = 'special_tariff_period' AND entity_id IN (SELECT id::text FROM special_tariff_periods WHERE name = 'E2E feriado')`, []);

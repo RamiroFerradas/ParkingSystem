@@ -1,7 +1,7 @@
 # Mejoras de operación y UI — cloud-first (nov 2026)
 
 Objetivo: dejar el ambiente local apuntando a Supabase dev, endurecer el ingreso (patente y selección de box), corregir textos de UI y ampliar la información del mapa de boxes.
-Rama: `rebuild/next-16`. Entrega: commit + deploy en Vercel cuando el usuario lo apruebe. Test runner: `scripts/test-e2e.mjs` (HTTP + DB, 75 checks) y `pnpm build`.
+Rama: `rebuild/next-16`. Entrega: commit + deploy en Vercel cuando el usuario lo apruebe. Test runner: `scripts/test-e2e.mjs` (HTTP + DB, 100 checks) y `pnpm build`.
 
 ## Specs
 
@@ -17,6 +17,9 @@ Rama: `rebuild/next-16`. Entrega: commit + deploy en Vercel cuando el usuario lo
 - S10: "error insert or update on table \"vehicles\" violates foreign key constraint \"vehicles_created_by_fkey\"" → una sesión ya no válida (cookie emitida contra otra base, usuario borrado o desactivado) no debe romper el ingreso ni dejar al usuario en un loop; el servidor debe revalidar la sesión contra la base y pedir login de nuevo.
 - S11: "deberia no mostrarle directamente" → el menú lateral no debe mostrar secciones que el rol no puede abrir; se filtran por la misma matriz de permisos que aplican las páginas.
 - S12: "si" → crear `shift.manage` (supervisor + admin), aplicarlo en la página y en los endpoints de caja, y aplicar `session.read_own` en estadías, historial y exportación: un usuario sin `session.read_all` solo ve las estadías que abrió.
+- S14: "debemos tener precios por bloques de cada vehicuilo" / "todos deben tener sus bbloques por hora como te pase en un principio" → el tarifario se agrupa por tipo de vehículo y cada tipo muestra su escalera de bloques por hora (1/4/8/12/24 h), editable inline. Sin código en la UI (la columna `code` queda nullable por compatibilidad) y sin nombre/modo editables.
+- S15: "poder tener precios temporales y susp recios fijos de siempre mdiificables" → cada bloque tiene vigencia Fija o Temporal (desde/hasta). La temporal reemplaza a la fija del mismo tipo y duración mientras esté vigente; al vencer vuelve la fija. `calc_fee_breakdown` respeta `valid_from` y prioriza temporal > fija.
+- S16: "deberiamos tener un selector para elegir la tareifa de que tipo de vehiculo queremos mosdificar" → selector de tipo de vehículo arriba del tarifario; se muestra solo el tipo elegido.
 
 ## Tasks
 
@@ -33,6 +36,7 @@ Rama: `rebuild/next-16`. Entrega: commit + deploy en Vercel cuando el usuario lo
 - T11 · S10 · Revalidación de sesión contra `profiles` (existencia + `is_active`, rol desde la base), aviso "Tu sesión venció" y corte del loop proxy↔layout · done · cookie firmada con id inexistente: `GET /` → `/login?expired=1` con aviso, `POST /api/sessions/open` → 401; empleado con login fresco → ingreso 200
 - T12 · S11 · Filtro del menú por permiso: `nav-config` declara el permiso de cada ítem, `filterNavGroups` descarta ítems y grupos vacíos, `Sidebar` resuelve la matriz una vez (`permissionsFor`) · done · e2e "sidebar: empleado no ve secciones restringidas" y "sidebar: admin si ve secciones restringidas" verdes; en navegador el empleado ve Dashboard, Operaciones, Mapa de boxes, Listado de vehículos y Turnos de caja (este último lo oculta T13)
 - T13 · S12 · `shift.manage` (migración 009: supervisor + admin) aplicado en página de turnos y en `/api/shifts/open|close`; `session.read_own` aplicado con `historialScopeForSession()` en estadías, historial y export CSV · done · e2e 75/75 contra dev: "turnos: empleado bloqueado (página + endpoint)", "read_own: empleado no ve estadías ajenas", "read_own: admin ve todas las estadías"; migración aplicada en `dev` y `public` (shift.manage = admin, supervisor). Verificación independiente: PASS tras corregir el ítem "Listado" (`/vehiculos` no declaraba `vehicle.read_all`) y el fail-open de estadías
+- T15 · S14..S16 · Tarifario por vehículo: selector de tipo, bloques por hora editables, sin código/nombre/modo en la UI; vigencia Fija/Temporal por bloque; API con `validFrom`/`validTo` y nombre autogenerado; migración 010 corrige `calc_fee_breakdown` (respeta `valid_from`, temporal > fija, extras al bloque mínimo vigente) · done · e2e 100/100 contra dev (10 checks nuevos) + Playwright: selector Moto muestra solo Moto, editor de vigencia temporal y monto inline; migración 010 aplicada en `dev` y `public`
 
 ## Log
 
@@ -60,3 +64,9 @@ Rama: `rebuild/next-16`. Entrega: commit + deploy en Vercel cuando el usuario lo
 - S13: al intentar abrir una estadía con una patente que ya está estacionada en otro box, la API responde 409 `VEHICLE_PARKED` con el box y ticket actuales; el ingreso ofrece moverla y `POST /api/sessions/move` cambia de box conservando ticket, patente y hora de ingreso (sin recobro ni ticket nuevo). Mover al mismo box, a un box ocupado, dado de baja o fuera de servicio se rechaza.
 - T14 · S13 · Confirmación de mover vehículo en el ingreso: pre-check de patente en `/api/sessions/open`, endpoint transaccional `/api/sessions/move` (update + `sync_outbox` + auditoría `session.move`), panel de confirmación y vista "Vehículo movido de box" · done · e2e 90/90 (8 checks nuevos: conflicto con box/ticket, move conservando ticket, destino ocupado, outbox y auditoría) + Playwright: `UI456` en box 01 → "¿Moverla al box 02?" → movida con ticket 45 intacto y box 02.
 - Evidencia L10: `open_session` seguía devolviendo el mensaje genérico de violación única cuando la patente ya estaba abierta; ahora la ruta la busca antes del INSERT (`findParked`) y responde 409 con `sameBox` y los datos de la estadía; la carrera entre el pre-check y el INSERT se revalida en el catch. `move` valida sesión abierta, box activo/en servicio/libre y escribe en una sola transacción con `pool.connect()` (patrón de `api/floors`). e2e 90/90 verde contra dev y verificación en navegador con cookies reales.
+- L11: "che donde puedo modificar los precios de la tarifa de forma fija?"
+- L12: "me parece medio l;a pedo tener un codigo pro cada tarifa, y cada vehivcuklo tener su tarifa y poder tener precios temporales y susp recios fijos de siempre mdiificables. pero si te parece bien tener codigos los dejamos, peor debemos tener precios por b loques de cada vehicuilo"
+- L13: "si"
+- L14: "pero todos deben tener sus bbloques por hora como te pase en un principio"
+- L15: "deberiamos tener un selector para elegir la tareifa de que tipo de vehiculo queremos mosdificar"
+- Evidencia L11-L15: `pnpm build` OK. Migración `010_tarifas_vigencia.sql` aplicada en `dev`: `calc_fee_breakdown` ahora filtra `valid_from <= now()`, prioriza temporal (`valid_to` definido) sobre fija para la misma duración y usa la misma precedencia para el bloque mínimo y la hora extra. Verificación SQL directa: AUTO 1 h fija 480000; temporal vigente 999900; temporal vencida vuelve a 480000; tarifa futura no se aplica. e2e 100/100 contra dev (10 checks nuevos: bloque sin código con nombre autogenerado, bloque temporal con vigencia, vigencia invertida 400, volver a fija, precedencia temporal/fija, tarifa futura ignorada y UI sin código). Playwright: el selector Auto/Utilitario/Camión/Moto/Bicicleta muestra solo el tipo elegido; el editor "Vigencia → Temporal" despliega desde/hasta y "Monto" edita inline. Nota: Bicicleta tiene solo 1 h porque es lo que traía la tabla inicial; se agregan más bloques desde su tarjeta. Migración 010 aplicada también en `public`.
