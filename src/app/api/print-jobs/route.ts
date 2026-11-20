@@ -67,6 +67,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    // B1: la sucursal se resuelve desde la estadía, no desde el body. Un job
+    // solo puede encolarse para una estadía de la sucursal activa.
+    const owned = await query<{ id: string }>(
+      "SELECT id FROM parking_sessions WHERE id = $1 AND branch_id = $2",
+      [sessionId, user.branchId],
+    );
+    if (!owned[0]) {
+      return NextResponse.json({ error: "Estadía no encontrada" }, { status: 404 });
+    }
+
     const rows = await query<{ id: string }>(
       `INSERT INTO print_jobs (id, session_id, kind) VALUES (gen_random_uuid(), $1, $2::print_job_kind)
        RETURNING id::text`,
@@ -106,14 +116,18 @@ export async function PATCH(request: Request) {
 
   try {
     const rows = await query<{ id: string }>(
-      `UPDATE print_jobs SET
+      `UPDATE print_jobs j SET
           status = $2::print_job_status,
           attempts = attempts + 1,
           last_error = CASE WHEN $2::print_job_status = 'error' THEN $3::text ELSE NULL END,
           printed_at = CASE WHEN $2::print_job_status = 'printed' THEN now() ELSE printed_at END
-        WHERE id = $1
-        RETURNING id::text`,
-      [id, status, typeof lastError === "string" ? lastError.slice(0, 300) : null],
+        WHERE j.id = $1
+          AND EXISTS (
+            SELECT 1 FROM parking_sessions s
+             WHERE s.id = j.session_id AND s.branch_id = $4
+          )
+        RETURNING j.id::text`,
+      [id, status, typeof lastError === "string" ? lastError.slice(0, 300) : null, user.branchId],
     );
     if (rows.length === 0) {
       return NextResponse.json({ error: "Job de impresión inexistente" }, { status: 404 });

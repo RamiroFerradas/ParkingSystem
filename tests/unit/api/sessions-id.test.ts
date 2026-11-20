@@ -67,7 +67,42 @@ describe("GET /api/sessions/[id]", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ session: row });
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual([SESSION_ID, "branch-1"]);
+    // B3: the third parameter is the read scope; null means `session.read_all`.
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual([SESSION_ID, "branch-1", null]);
+  });
+
+  it("still returns the payload to its owner without session.read_all", async () => {
+    // The context mock grants everything, so mirror the real `can` for an
+    // employee: every permission except the cross-user read scope.
+    mockContext.mockResolvedValueOnce({
+      context: {
+        ...context,
+        can: (permission: string) => permission !== "session.read_all",
+      },
+      error: null,
+    });
+    mockQuery.mockResolvedValueOnce([{ ticket_number: "42" }]);
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual([SESSION_ID, "branch-1", "user-1"]);
+  });
+
+  it("returns 404 for another user's session when read_all is missing", async () => {
+    mockContext.mockResolvedValueOnce({
+      context: {
+        ...context,
+        can: (permission: string) => permission !== "session.read_all",
+      },
+      error: null,
+    });
+    mockQuery.mockResolvedValueOnce([]);
+
+    const res = await get();
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ error: "Estadía no encontrada" });
   });
 
   it("returns 401 when there is no session", async () => {

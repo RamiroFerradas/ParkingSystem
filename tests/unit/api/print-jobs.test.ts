@@ -59,6 +59,9 @@ function pgError(code: string): Error {
 
 beforeEach(() => {
   mockSession.mockResolvedValue(user);
+  // B1 adds a scoping query, so tests queue `mockResolvedValueOnce` per call.
+  // Reset first to drop unused queue entries from the previous test.
+  mockQuery.mockReset();
   mockQuery.mockResolvedValue([]);
 });
 
@@ -110,25 +113,58 @@ describe("GET /api/print-jobs", () => {
 
 describe("POST /api/print-jobs", () => {
   it("queues an entry ticket without an audit entry", async () => {
-    mockQuery.mockResolvedValueOnce([{ id: "job-1" }]);
+    // B1: the handler first resolves the session's branch, so the insert is now
+    // the second statement instead of the first.
+    mockQuery
+      .mockResolvedValueOnce([{ id: "session-1" }])
+      .mockResolvedValueOnce([{ id: "job-1" }]);
 
     const res = await post({ sessionId: "session-1", kind: "entry" });
 
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual({ ok: true, id: "job-1" });
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    expect(mockQuery.mock.calls[0]?.[0]).toContain("FROM parking_sessions");
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["session-1", "branch-1"]);
+    expect(mockQuery.mock.calls[1]?.[0]).toContain("INSERT INTO print_jobs");
+    expect(mockQuery.mock.calls[1]?.[1]).toEqual(["session-1", "entry"]);
+  });
+
+  it("rejects a session from another branch without inserting a job", async () => {
+    mockQuery.mockResolvedValueOnce([]);
+
+    const res = await post({ sessionId: "session-2", kind: "entry" });
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ error: "Estadía no encontrada" });
     expect(mockQuery).toHaveBeenCalledTimes(1);
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["session-1", "entry"]);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["session-2", "branch-1"]);
+  });
+
+  it("rejects a cross-branch reprint before writing the audit log", async () => {
+    mockQuery.mockResolvedValueOnce([]);
+
+    const res = await post({ sessionId: "session-2", kind: "reprint" });
+
+    expect(res.status).toBe(404);
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(
+      mockQuery.mock.calls.some(([sql]) => String(sql).includes("ticket.reprint")),
+    ).toBe(false);
   });
 
   it("audits a manual reprint", async () => {
-    mockQuery.mockResolvedValueOnce([{ id: "job-2" }]).mockResolvedValueOnce([]);
+    mockQuery
+      .mockResolvedValueOnce([{ id: "session-1" }])
+      .mockResolvedValueOnce([{ id: "job-2" }])
+      .mockResolvedValueOnce([]);
 
     const res = await post({ sessionId: "session-1", kind: "reprint" });
 
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual({ ok: true, id: "job-2" });
-    expect(mockQuery.mock.calls[1]?.[0]).toContain("ticket.reprint");
-    expect(mockQuery.mock.calls[1]?.[1]).toEqual(["user-1", "session-1"]);
+    expect(mockQuery.mock.calls[2]?.[0]).toContain("ticket.reprint");
+    expect(mockQuery.mock.calls[2]?.[1]).toEqual(["user-1", "session-1"]);
   });
 
   it("rejects an unparsable body with 400", async () => {
@@ -173,7 +209,21 @@ describe("PATCH /api/print-jobs", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["job-1", "printed", null]);
+    // B1: the update now carries the caller's branch and only matches jobs
+    // whose session belongs to it.
+    expect(mockQuery.mock.calls[0]?.[0]).toContain("parking_sessions");
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["job-1", "printed", null, "branch-1"]);
+  });
+
+  it("rejects a job from another branch with 404", async () => {
+    // The scoped UPDATE matches no row when the session lives in another branch.
+    mockQuery.mockResolvedValueOnce([]);
+
+    const res = await patch({ id: "job-9", status: "printed" });
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ error: "Job de impresión inexistente" });
+    expect(mockQuery.mock.calls[0]?.[1]?.[3]).toBe("branch-1");
   });
 
   it("records a truncated error message", async () => {

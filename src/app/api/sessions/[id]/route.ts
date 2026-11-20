@@ -17,6 +17,11 @@ export async function GET(
     return NextResponse.json({ error: "Identificador inválido" }, { status: 400 });
   }
 
+  // Mismo alcance que el historial: sin `session.read_all` solo se lee el
+  // payload de las estadías propias. Se filtra en SQL y se mantiene el 404
+  // para no revelar que la estadía existe.
+  const ownerId = context.can("session.read_all") ? null : context.user.userId;
+
   try {
     const rows = await query<{
       ticket_number: string;
@@ -49,8 +54,9 @@ export async function GET(
          JOIN parking_boxes b ON b.id = s.box_id
          LEFT JOIN payments p ON p.session_id = s.id
          LEFT JOIN payment_methods m ON m.id = p.method_id
-        WHERE s.id = $1 AND s.branch_id = $2`,
-      [id, context.branchId],
+        WHERE s.id = $1 AND s.branch_id = $2
+          AND ($3::uuid IS NULL OR s.opened_by = $3::uuid)`,
+      [id, context.branchId, ownerId],
     );
     if (rows.length === 0) {
       return NextResponse.json({ error: "Estadía no encontrada" }, { status: 404 });
