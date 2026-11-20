@@ -15,8 +15,9 @@ phases:
     status: complete
     artifact: tasks.md
   apply:
-    status: pending
+    status: in_progress
     artifact: null
+    note: "T0, T1, T2, T3, T4, T11 done; T5 and T8 partial"
   verify:
     status: pending
     artifact: null

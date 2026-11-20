@@ -48,6 +48,9 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (!user.branchId) {
+    return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
+  }
 
   try {
     const target = await loadTarget(id);
@@ -57,7 +60,7 @@ export async function GET(
 
     const [roleMatrix, overrides] = await Promise.all([
       loadPermissionMatrix(),
-      loadUserPermissionOverrides(id),
+      loadUserPermissionOverrides(id, user.branchId),
     ]);
 
     const permissions = configurableSections().map((section) => {
@@ -118,6 +121,10 @@ export async function PUT(
   }
 
   const { id } = await params;
+  const branchId = user.branchId;
+  if (!branchId) {
+    return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -177,8 +184,8 @@ export async function PUT(
     }
 
     const currentRows = await client.query<{ permission: string; allowed: boolean }>(
-      "SELECT permission, allowed FROM user_permissions WHERE user_id = $1",
-      [id],
+      "SELECT permission, allowed FROM user_permissions WHERE user_id = $1 AND branch_id = $2",
+      [id, branchId],
     );
     const before = new Map<string, boolean>(
       currentRows.rows.map((row) => [row.permission, row.allowed]),
@@ -208,9 +215,9 @@ export async function PUT(
         `SELECT p.role::text AS role, up.allowed
            FROM profiles p
            LEFT JOIN user_permissions up
-             ON up.user_id = p.id AND up.permission = 'user.manage'
+             ON up.user_id = p.id AND up.permission = 'user.manage' AND up.branch_id = $2
           WHERE p.is_active AND p.id <> $1`,
-        [id],
+        [id, branchId],
       );
       const survivors = others.rows.filter((row) =>
         row.allowed === null
@@ -230,19 +237,19 @@ export async function PUT(
     for (const [permission, allowed] of requested) {
       if (allowed === null) {
         await client.query(
-          "DELETE FROM user_permissions WHERE user_id = $1 AND permission = $2",
-          [id, permission],
+          "DELETE FROM user_permissions WHERE user_id = $1 AND branch_id = $2 AND permission = $3",
+          [id, branchId, permission],
         );
         continue;
       }
       await client.query(
-        `INSERT INTO user_permissions (user_id, permission, allowed, updated_by)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, permission) DO UPDATE
+        `INSERT INTO user_permissions (user_id, branch_id, permission, allowed, updated_by)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, branch_id, permission) DO UPDATE
            SET allowed = EXCLUDED.allowed,
                updated_by = EXCLUDED.updated_by,
                updated_at = now()`,
-        [id, permission, allowed, user.userId],
+        [id, branchId, permission, allowed, user.userId],
       );
     }
 

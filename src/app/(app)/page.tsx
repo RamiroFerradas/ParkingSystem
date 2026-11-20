@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { query } from "@/lib/db/client";
 import { formatARS } from "@/lib/format";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
 import { MiniBoxMap } from "@/components/boxes/mini-box-map";
 
 /**
@@ -79,19 +78,23 @@ export default function DashboardPage() {
 async function MiniBoxMapSection() {
   // El mapa compacto muestra boxes, patentes y tickets: si el usuario tiene
   // negado `box.read`, no se renderiza (el menú ya oculta la sección).
-  const user = await getSessionUser();
-  if (!user) return null;
-  if (!(await hasPermission(user, "box.read"))) return null;
-  return <MiniBoxMap />;
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
+  if (!context.can("box.read")) return null;
+  return <MiniBoxMap branchId={context.branchId} />;
 }
 
 async function OccupancyCards() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
   const rows = await query<{ occupied: string; available: string; out_of_service: string }>(
     `SELECT
        count(*) FILTER (WHERE status = 'occupied')      AS occupied,
        count(*) FILTER (WHERE status = 'available')     AS available,
        count(*) FILTER (WHERE status = 'out_of_service') AS out_of_service
-     FROM box_status`,
+     FROM box_status
+     WHERE branch_id = $1`,
+    [context.branchId],
   );
   const s = rows[0] ?? { occupied: "0", available: "0", out_of_service: "0" };
   const total = Number(s.occupied) + Number(s.available) + Number(s.out_of_service);
@@ -106,6 +109,8 @@ async function OccupancyCards() {
 }
 
 async function TodayCards() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
   const rows = await query<{
     ingresos: string;
     egresos: string;
@@ -113,15 +118,21 @@ async function TodayCards() {
   }>(
     `SELECT
        (SELECT count(*) FROM parking_sessions
-         WHERE (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
+         WHERE branch_id = $1
+           AND (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS ingresos,
        (SELECT count(*) FROM parking_sessions
-         WHERE status = 'closed'
+         WHERE branch_id = $1
+           AND status = 'closed'
            AND (exit_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS egresos,
-       (SELECT COALESCE(SUM(amount_charged_cents), 0) FROM payments
-         WHERE (paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
+       (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
+          FROM payments p
+          JOIN parking_sessions s ON s.id = p.session_id
+         WHERE s.branch_id = $1
+           AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_cents`,
+    [context.branchId],
   );
   const s = rows[0] ?? { ingresos: "0", egresos: "0", recaudado_cents: "0" };
   return (
@@ -144,6 +155,8 @@ const TONES: Record<string, string> = {
 };
 
 async function YesterdayCards() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
   const rows = await query<{
     ingresos_ayer: string;
     recaudado_hoy: string;
@@ -151,14 +164,20 @@ async function YesterdayCards() {
   }>(
     `SELECT
        (SELECT count(*) FROM parking_sessions
-         WHERE (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
+         WHERE branch_id = $1
+           AND (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = ((now() - interval '1 day') AT TIME ZONE 'America/Argentina/Cordoba')::date) AS ingresos_ayer,
-       (SELECT COALESCE(SUM(amount_charged_cents), 0) FROM payments
-         WHERE (paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
+       (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
+          FROM payments p JOIN parking_sessions s ON s.id = p.session_id
+         WHERE s.branch_id = $1
+           AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_hoy,
-       (SELECT COALESCE(SUM(amount_charged_cents), 0) FROM payments
-         WHERE (paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
+       (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
+          FROM payments p JOIN parking_sessions s ON s.id = p.session_id
+         WHERE s.branch_id = $1
+           AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = ((now() - interval '1 day') AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_ayer`,
+    [context.branchId],
   );
   const s = rows[0] ?? { ingresos_ayer: "0", recaudado_hoy: "0", recaudado_ayer: "0" };
   const hoy = Number(s.recaudado_hoy);
@@ -178,13 +197,19 @@ async function YesterdayCards() {
 }
 
 async function MethodsToday() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
   const rows = await query<{ method_name: string; n: string; collected: string }>(
     `SELECT m.name AS method_name, count(*)::text AS n,
             COALESCE(sum(p.amount_charged_cents), 0)::text AS collected
-       FROM payments p JOIN payment_methods m ON m.id = p.method_id
-      WHERE (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
+       FROM payments p
+       JOIN payment_methods m ON m.id = p.method_id
+       JOIN parking_sessions s ON s.id = p.session_id
+      WHERE s.branch_id = $1
+        AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
           = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
       GROUP BY m.name ORDER BY sum(p.amount_charged_cents) DESC`,
+    [context.branchId],
   );
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
@@ -208,11 +233,16 @@ async function MethodsToday() {
 }
 
 async function PendingPrints() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
   const rows = await query<{ n: string; errors: string }>(
     `SELECT
-       count(*) FILTER (WHERE status = 'pending')::text AS n,
-       count(*) FILTER (WHERE status = 'error')::text AS errors
-       FROM print_jobs`,
+       count(*) FILTER (WHERE j.status = 'pending')::text AS n,
+       count(*) FILTER (WHERE j.status = 'error')::text AS errors
+       FROM print_jobs j
+       JOIN parking_sessions s ON s.id = j.session_id
+      WHERE s.branch_id = $1`,
+    [context.branchId],
   );
   const s = rows[0] ?? { n: "0", errors: "0" };
   const total = Number(s.n) + Number(s.errors);

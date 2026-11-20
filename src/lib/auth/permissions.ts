@@ -6,6 +6,8 @@ export type PermissionKey = string;
 export interface PermissionSubject {
   userId: string;
   role: string;
+  /** Overrides are branch-scoped; with no branch there are none. */
+  branchId?: string | null;
 }
 
 // La matriz de roles se cachea en memoria: cambia rara vez y solo por decisión
@@ -37,11 +39,23 @@ export async function loadPermissionMatrix(): Promise<Map<string, boolean>> {
 /** Excepciones del usuario: clave `permiso`, valor permitido/denegado. */
 export async function loadUserPermissionOverrides(
   userId: string,
+  branchId?: string | null,
 ): Promise<Map<string, boolean>> {
-  const rows = await query<{ permission: string; allowed: boolean }>(
-    "SELECT permission, allowed FROM user_permissions WHERE user_id = $1",
-    [userId],
-  );
+  // Overrides are per branch. `undefined` keeps the legacy "all branches" read
+  // used by the admin configurator before it selects a branch.
+  if (branchId === null) return new Map();
+
+  const rows =
+    branchId === undefined
+      ? await query<{ permission: string; allowed: boolean }>(
+          "SELECT permission, allowed FROM user_permissions WHERE user_id = $1",
+          [userId],
+        )
+      : await query<{ permission: string; allowed: boolean }>(
+          "SELECT permission, allowed FROM user_permissions WHERE user_id = $1 AND branch_id = $2",
+          [userId, branchId],
+        );
+
   const map = new Map<string, boolean>();
   for (const row of rows) {
     map.set(row.permission, row.allowed);
@@ -87,7 +101,7 @@ export async function hasPermission(
 ): Promise<boolean> {
   const [roleMatrix, overrides] = await Promise.all([
     loadPermissionMatrix(),
-    loadUserPermissionOverrides(user.userId),
+    loadUserPermissionOverrides(user.userId, user.branchId),
   ]);
   return decide(roleMatrix, overrides, user.role, permission);
 }
@@ -101,7 +115,7 @@ export async function permissionsFor(
 ): Promise<(permission: PermissionKey) => boolean> {
   const [roleMatrix, overrides] = await Promise.all([
     loadPermissionMatrix(),
-    loadUserPermissionOverrides(user.userId),
+    loadUserPermissionOverrides(user.userId, user.branchId),
   ]);
   return (permission) => decide(roleMatrix, overrides, user.role, permission);
 }

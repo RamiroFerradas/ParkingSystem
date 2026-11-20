@@ -13,6 +13,7 @@ interface LoginRow {
   full_name: string;
   email: string;
   role: UserRole;
+  is_master: boolean;
   password_hash: string;
 }
 
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
   }
 
   const rows = await query<LoginRow>(
-    `SELECT p.id, p.full_name, p.email, p.role::text AS role, c.password_hash
+    `SELECT p.id, p.full_name, p.email, p.role::text AS role,
+            p.is_master, c.password_hash
        FROM profiles p
        JOIN auth_credentials c ON c.user_id = p.id
       WHERE p.email = $1 AND p.is_active = true
@@ -60,16 +62,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: GENERIC_ERROR }, { status: 401 });
   }
 
+  // A single membership is selected automatically; anything else asks the user
+  // (or the master) to pick a branch before operating.
+  const memberships = user.is_master
+    ? []
+    : (
+        await query<{ branch_id: string }>(
+          `SELECT ub.branch_id
+             FROM user_branches ub
+             JOIN branches b ON b.id = ub.branch_id AND b.is_active = true
+            WHERE ub.user_id = $1
+            ORDER BY b.name`,
+          [user.id],
+        )
+      ).map((row) => row.branch_id);
+
+  const activeBranchId =
+    !user.is_master && memberships.length === 1 ? memberships[0] : null;
+
   const token = await createSessionToken({
     userId: user.id,
-    email: user.email,
-    name: user.full_name,
-    role: user.role,
+    activeBranchId: activeBranchId ?? null,
   });
 
   const response = NextResponse.json({
     ok: true,
-    user: { name: user.full_name, role: user.role },
+    user: { name: user.full_name, role: user.role, isMaster: user.is_master },
+    redirectTo: activeBranchId ? "/" : "/seleccionar-sucursal",
   });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
 

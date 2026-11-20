@@ -1,16 +1,15 @@
-import type { SessionUser } from "@/lib/auth/session";
-import { permissionsFor } from "@/lib/auth/permissions";
+import type { BranchContext } from "@/lib/auth/context";
 import { ROLE_LABELS, NAV_GROUPS, filterNavGroups } from "./nav-config";
 import { SidebarNav } from "./sidebar-nav";
 import { ConnectivityBadge } from "./connectivity-badge";
 import { LogoutButton } from "./logout-button";
+import { BranchSwitcher } from "./branch-switcher";
 
-export async function Sidebar({ user }: { user: SessionUser }) {
-  // El menú muestra solo lo que el rol puede abrir: el empleado no ve
-  // secciones de administración ni reportes, en vez de chocar contra
-  // "Acceso restringido".
-  const allowed = await permissionsFor(user);
-  const groups = filterNavGroups(NAV_GROUPS, allowed);
+export function Sidebar({ context }: { context: BranchContext }) {
+  // El menú muestra solo lo que el usuario puede abrir en la sucursal activa:
+  // el empleado no ve secciones de administración ni reportes, en vez de
+  // chocar contra "Acceso restringido".
+  const groups = filterNavGroups(NAV_GROUPS, context.can);
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900">
@@ -21,11 +20,20 @@ export async function Sidebar({ user }: { user: SessionUser }) {
         <p className="mt-0.5 text-xs text-neutral-500">Gestión de estacionamiento</p>
       </div>
 
+      <div className="border-b border-neutral-800 px-4 py-3">
+        <BranchSwitcher
+          current={context.branchId}
+          options={context.memberships}
+        />
+      </div>
+
       <SidebarNav groups={groups} />
 
       <div className="border-t border-neutral-800 px-4 py-3">
-        <p className="truncate text-sm text-neutral-200">{user.name}</p>
-        <p className="text-xs text-neutral-500">{ROLE_LABELS[user.role] ?? user.role}</p>
+        <p className="truncate text-sm text-neutral-200">{context.user.name}</p>
+        <p className="text-xs text-neutral-500">
+          {context.role ? (ROLE_LABELS[context.role] ?? context.role) : "Master"}
+        </p>
         <div className="mt-2 flex items-center justify-between">
           <ConnectivityBadge />
           <LogoutButton />

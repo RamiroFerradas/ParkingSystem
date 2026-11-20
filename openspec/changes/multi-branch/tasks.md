@@ -182,3 +182,27 @@ check exists: write the failing test, observe RED, implement, observe GREEN.
   task depends on it.
 - `packages.json` gains `test`; CI gains a step that runs `npm test` against a
   service database.
+
+## Progress
+
+| Task | Status | Evidence |
+|---|---|---|
+| T0 harness | done | `tests/db/harness.mjs`, `npm test`, rollback per test |
+| T11 characterization | done | 8/8 green before and after `014_branches.sql` |
+| T1 migration | done | `014_branches.sql`, applied to `dev`, idempotent guards |
+| T2 branch RPCs | done | `open_session` / `close_session` / `quote_exit` / `calc_fee_breakdown` / `master_dashboard` |
+| T3 branch context | done | `src/lib/auth/context.ts`, branch-aware `getSessionUser` |
+| T4 session + switch | done | JWT carries `activeBranchId`; `/api/auth/switch-branch`; `/seleccionar-sucursal`; sidebar switcher |
+| T5 query scoping | **partial** | Only the dashboard is branch-scoped. Every other route/page still global. |
+| T6 page scoping | pending | — |
+| T7 master console | pending | Only `/master/sucursales` exists |
+| T8 branch admin | **partial** | Create + list. No edit, deactivate or reactivate. |
+| T9 membership admin | pending | Masters can switch to any branch; staff assignment has no UI yet. |
+| T10 audit attribution | partial | `close_session` writes `branch_id`; auth events stay global (`NULL`). |
+| T12 scoping regression | pending | — |
+| T13 docs | pending | — |
+
+Known gap: `src/app/(app)/page.tsx` is scoped, but ingresos, egresos, estadías,
+reportes, boxes map, tariffs and admin pages are not. Until T5/T6 land, the
+switcher changes the dashboard only.
+

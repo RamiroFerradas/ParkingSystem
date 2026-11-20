@@ -10,7 +10,7 @@ const BOX_TONES: Record<string, string> = {
  * Mini mapa de boxes para el dashboard: cuadritos de 10px por piso, con el
  * resumen del estado al lado. Mismo dato que el mapa grande, mucho más chico.
  */
-export async function MiniBoxMap() {
+export async function MiniBoxMap({ branchId }: { branchId: string }) {
   const rows = await query<{
     number: string;
     floor_name: string;
@@ -19,7 +19,9 @@ export async function MiniBoxMap() {
   }>(
     `SELECT number, floor_name, status, plate
        FROM box_status
+      WHERE branch_id = $1
       ORDER BY floor_sort, number`,
+    [branchId],
   );
   if (rows.length === 0) {
     return (

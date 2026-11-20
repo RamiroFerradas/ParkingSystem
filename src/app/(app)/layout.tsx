@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { getSessionUser } from "@/lib/auth/session";
+import { getBranchContext } from "@/lib/auth/context";
 import { Sidebar } from "@/components/shell/sidebar";
 
 /**
@@ -19,15 +19,18 @@ export default function AuthenticatedLayout({
 }
 
 async function ShellGate({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser();
-  if (!user) {
+  const context = await getBranchContext();
+  if (!context) {
     // `expired` evita el loop con el proxy cuando la cookie existe pero ya
     // no es válida (usuario borrado/desactivado o cookie de otro ambiente).
     redirect("/login?expired=1");
   }
+  if (!context.branchId) {
+    redirect("/seleccionar-sucursal");
+  }
   return (
     <div className="flex h-screen">
-      <Sidebar user={user} />
+      <Sidebar context={context} />
       <main className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>
   );
