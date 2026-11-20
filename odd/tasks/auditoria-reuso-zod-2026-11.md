@@ -75,14 +75,33 @@ Branch: `rebuild/next-16` · Delivery: work units por área · Runner: `pnpm tes
 | ID | Área | Alcance | Estado |
 |---|---|---|---|
 | T1 | foundation | `src/lib/schemas/common.ts`, `src/lib/api/body.ts` + tests | done |
-| T2 | zod/catalogs | `schemas/catalogs.ts` + 7 rutas catálogo | pending |
-| T3 | zod/money | `schemas/money.ts` + 6 rutas económicas/usuarios | pending |
-| T4 | zod/ops | `schemas/operations.ts` + rutas de sesiones/turnos/print | pending |
-| T5 | zod/misc | `schemas/misc.ts` + auth/vehicles/reports/audit-logs | pending |
-| T6 | ui | `components/ui/*` primitivos + `src/lib/ui-classes.ts` | pending |
-| T7 | lib | `api/client.ts`, `reports/months.ts`, `queries/tariffs.ts` | pending |
-| T8 | apply | managers y páginas consumen primitivos | pending |
-| T9 | splits | partir los archivos > 300 líneas con re-export | pending |
+| T2 | zod/catalogs | `schemas/catalogs.ts` + 7 rutas catálogo | done |
+| T3 | zod/money | `schemas/money.ts` + `schemas/users.ts` + 6 rutas | done |
+| T4 | zod/ops | `schemas/operations.ts` + sesiones/turnos/print | done |
+| T5 | zod/misc | `schemas/misc.ts` + auth/vehicles/reports/audit-logs | done |
+| T6 | ui | `components/ui/*` 8 primitivos + `src/lib/ui-classes.ts` | done |
+| T7 | lib | `api/client.ts`, `reports/months.ts`, `queries/{reports/overview,shift-detail,dashboard}.ts` | done |
+| T8 | apply | managers y páginas consumen primitivos | done |
+| T9 | splits | todos los archivos > 320 líneas partidos | done |
+
+### Resultado de los splits
+
+| Archivo | Antes | Después |
+|---|---|---|
+| `(app)/page.tsx` (dashboard) | 535 | 106 (+12 archivos en `_components/dashboard/`, + `lib/queries/dashboard.ts`) |
+| `tarifas/productos/tariffs-manager.tsx` | 772 | 114 (+4 archivos) |
+| `reportes/page.tsx` | 656 | 307 (+ `lib/queries/reports/overview.ts`) |
+| `operaciones/ingreso/ingreso-form.tsx` | 568 | 288 (+4 archivos) |
+| `tarifas/abonados/abonados-manager.tsx` | 416 | 243 (+ `use-abonados.ts`) |
+| `reportes/turnos/[id]/page.tsx` | 402 | 237 (+ `lib/queries/shift-detail.ts`) |
+| `components/shell/skeletons.tsx` | 399 | 1 barrel (+9 archivos en `skeletons/`) |
+| `boxes/administracion/FloorManager.tsx` | 351 | 85 (+3 archivos) |
+| `api/tariffs/route.ts` | 313 | 311 (sin split: handlers cohesivos) |
+
+Ningún archivo de `src/` supera hoy las 320 líneas. Los cuatro que quedan en
+307-320 son cohesivos: `lib/queries/reports/overview.ts` (320),
+`api/tariffs/route.ts` (311), `components/ui/dialog.tsx` (308),
+`reportes/page.tsx` (307).
 
 ## Log
 
@@ -90,3 +109,8 @@ Branch: `rebuild/next-16` · Delivery: work units por área · Runner: `pnpm tes
 - **L2** Línea base verificada: 78 archivos / 883 tests verdes, `tsc --noEmit` limpio, tree limpio en `rebuild/next-16`.
 - **L3** `zod@4.6.7` agregado como dependencia (`pnpm add zod`).
 - **L4** Decisiones de riesgo: se difieren `auditLog()` (D6), adopción de `getBranchContextOrFail` (D7) y unificación de CSV (D11) porque cambian orden de parámetros SQL / mocks de tests / formato de salida, y S2 prohíbe cambios de comportamiento no pedidos durante el refactor.
+- **L5** Zod aplicado a 25 rutas en 4 unidades paralelas con superficies disjuntas. Cada `parseBody` conserva el mensaje exacto de su ruta y el `Cuerpo inválido` de JSON malformado. Los tests de API pasaron sin editar ninguno.
+- **L6** Primitivos: se crearon 8 componentes en `src/components/ui/` + `ui-classes.ts` con las cadenas de clases canónicas y las variantes divergentes separadas. Aplicados solo donde el markup era idéntico; toda divergencia (`Alert` sin `role`, `StatCard` sin tone `red`, `TableSection` con `<h2>`, inputs `min-h-11` de operaciones) quedó documentada y sin normalizar.
+- **L7** Splits: 9 archivos > 320 líneas partidos; el dashboard pasó de 535 a 106 + 12 secciones. Ningún archivo de `src/` supera 320 líneas hoy.
+- **L8** Verificación final: 88 archivos / 1033 tests verdes, `tsc --noEmit` limpio. `pnpm build` NO se corrió porque otro proceso tiene un dev server sobre `.next` en el mismo working tree.
+- **L9** Aviso: otra sesión está trabajando en el mismo working tree (`e2e/**`, `playwright.config.ts`, `tests/unit/e2e/**`, `.gitignore`, y `package.json`+`pnpm-lock.yaml` con `@playwright/test`). Los commits de esta feature usaron rutas explícitas; `package.json`/`pnpm-lock.yaml` arrastran también las entradas de Playwright de esa sesión.
