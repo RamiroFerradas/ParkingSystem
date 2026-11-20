@@ -16,7 +16,7 @@ interface BoxEditPanelProps {
 }
 
 const FIELD =
-  "mt-1 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-sky-600 disabled:cursor-not-allowed disabled:opacity-50";
+  "mt-1 min-h-11 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-sky-600 disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-0";
 const LABEL = "text-xs font-medium text-neutral-400";
 const TOGGLE_ROW =
   "flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2";
@@ -75,15 +75,18 @@ export function BoxEditPanel({ box, floorOptions, onClose }: BoxEditPanelProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end" data-box-edit-panel>
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-end lg:items-stretch"
+      data-box-edit-panel
+    >
       <button
         type="button"
         aria-label="Cerrar panel de edición"
         className="absolute inset-0 bg-black/60"
         onClick={onClose}
       />
-      <aside className="relative flex h-full w-full max-w-sm flex-col border-l border-neutral-800 bg-neutral-950 shadow-2xl">
-        <header className="flex items-start justify-between border-b border-neutral-800 px-5 py-4">
+      <aside className="dialog-panel relative flex max-h-[88dvh] w-full max-w-sm flex-col overflow-hidden rounded-t-2xl border-l border-t border-neutral-800 bg-neutral-950 shadow-2xl lg:max-h-none lg:rounded-none lg:border-t-0">
+        <header className="flex items-start justify-between gap-3 border-b border-neutral-800 px-4 py-3 sm:px-5 sm:py-4">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-neutral-500">Editar box</p>
             <h2 className="text-lg font-semibold tracking-tight">{box.number}</h2>
@@ -99,13 +102,13 @@ export function BoxEditPanel({ box, floorOptions, onClose }: BoxEditPanelProps) 
             type="button"
             data-box-edit-close
             onClick={onClose}
-            className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+            className="flex h-9 shrink-0 items-center rounded-md border border-neutral-700 px-2.5 text-xs text-neutral-300 hover:bg-neutral-800"
           >
             Cerrar
           </button>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
           {occupied && (
             <p className="rounded-md border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">
               El box tiene una estadía abierta: finalizala para poder modificar número, sector,
@@ -195,11 +198,11 @@ export function BoxEditPanel({ box, floorOptions, onClose }: BoxEditPanelProps) 
           )}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-neutral-800 px-5 py-4">
+        <footer className="flex flex-col-reverse gap-2 border-t border-neutral-800 px-4 pb-safe pt-3 sm:flex-row sm:items-center sm:justify-end sm:px-5 sm:py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+            className="min-h-11 rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 sm:min-h-0"
           >
             Cancelar
           </button>
@@ -208,7 +211,7 @@ export function BoxEditPanel({ box, floorOptions, onClose }: BoxEditPanelProps) 
             data-box-edit-save
             onClick={save}
             disabled={busy || locked}
-            className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-11 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0"
           >
             {busy ? "Guardando…" : "Guardar cambios"}
           </button>

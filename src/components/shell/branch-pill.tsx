@@ -63,7 +63,7 @@ export function BranchPill({
   }
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       {open ? (
         <button
           type="button"
@@ -85,7 +85,7 @@ export function BranchPill({
             active ? "bg-emerald-400" : "bg-neutral-500"
           }`}
         />
-        <span className="max-w-48 truncate">
+        <span className="min-w-0 flex-1 truncate text-left">
           {active?.branchName ?? "Elegí una sucursal"}
         </span>
         <svg
@@ -105,7 +105,7 @@ export function BranchPill({
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
+          className="absolute left-0 top-full z-50 mt-1 w-[min(15rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
           {canSwitch ? (
             <>

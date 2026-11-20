@@ -63,26 +63,32 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
             }
           : undefined
       }
-      className={`flex flex-col justify-between rounded-lg border p-3 ${
+      className={`flex min-h-[96px] touch-manipulation flex-col justify-between rounded-lg border p-2.5 transition active:scale-[0.98] sm:min-h-[88px] sm:p-3 ${
         isActive ? STATUS_STYLE[status] : INACTIVE_STYLE
-      } ${editable ? "cursor-pointer transition hover:border-neutral-400" : ""} ${
+      } ${editable ? "cursor-pointer hover:border-neutral-400" : ""} ${
         selected ? "ring-2 ring-amber-400" : ""
       }`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-lg font-semibold tracking-tight">{number}</span>
-        <span className="text-[10px] uppercase tracking-wider opacity-80">
+        <span className="font-mono text-base font-semibold tracking-tight sm:text-lg">
+          {number}
+        </span>
+        <span className="truncate text-[10px] uppercase tracking-wider opacity-80">
           {isActive ? (sector ?? "—") : "Inactivo"}
         </span>
       </div>
 
-      <div className="mt-2 min-h-10 text-xs">
+      <div className="mt-1.5 min-w-0 text-[11px] leading-snug sm:mt-2 sm:text-xs">
         {occupied ? (
           <>
-            <div className="font-mono font-semibold tracking-[0.08em] text-neutral-100">{plate}</div>
-            <div className="opacity-80">{vehicleTypeName ?? "—"}</div>
-            <div className="tabular-nums opacity-80">{`Ticket #${ticketNumber ?? "—"}`}</div>
-            <div className="tabular-nums opacity-70">
+            <div className="truncate font-mono text-sm font-semibold tracking-[0.06em] text-neutral-100">
+              {plate}
+            </div>
+            <div className="truncate opacity-80">{vehicleTypeName ?? "—"}</div>
+            <div className="truncate tabular-nums opacity-80">
+              {`Ticket #${ticketNumber ?? "—"}`}
+            </div>
+            <div className="truncate tabular-nums opacity-70">
               desde {formatTime(entryAt ?? "")}
               {elapsedLabel ? ` · ${elapsedLabel}` : ""}
             </div>

@@ -307,23 +307,31 @@ export default async function ReportesPage({
   }));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Reportes</h1>
-          <p className="text-sm text-neutral-500">
-            Facturación y estadísticas · período: {period.label.toLowerCase()}.
-          </p>
+    <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Reportes</h1>
+            <p className="text-xs text-neutral-500 sm:text-sm">
+              Facturación y estadísticas · período: {period.label.toLowerCase()}.
+            </p>
+          </div>
+          <a
+            href={`/api/reports/export?p=${period.key}`}
+            className="inline-flex min-h-10 items-center rounded-md border border-neutral-700 px-3 text-xs font-medium text-neutral-300 hover:bg-neutral-800"
+          >
+            Exportar CSV
+          </a>
         </div>
-        <nav className="flex flex-wrap gap-1.5">
+        <nav className="scroll-x -mx-1 flex gap-1.5 px-1 pb-1">
           {PERIODS.map((p) => (
             <Link
               key={p.key}
               href={`/reportes?p=${p.key}`}
               className={
-                "rounded-md border px-2.5 py-1 text-xs " +
+                "inline-flex min-h-9 shrink-0 items-center rounded-full border px-3 text-xs " +
                 (p.key === period.key
-                  ? "border-neutral-400 bg-neutral-800 text-neutral-100"
+                  ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
                   : "border-neutral-700 text-neutral-400 hover:bg-neutral-800")
               }
             >
@@ -332,20 +340,26 @@ export default async function ReportesPage({
           ))}
           <Link
             href="/reportes/boxes"
-            className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+            className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-neutral-700 px-3 text-xs text-neutral-300 hover:bg-neutral-800"
           >
             Ranking de boxes
           </Link>
-          <a
-            href={`/api/reports/export?p=${period.key}`}
-            className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+          <Link
+            href="/reportes/abonados"
+            className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-neutral-700 px-3 text-xs text-neutral-300 hover:bg-neutral-800"
           >
-            Exportar CSV
-          </a>
+            Abonados
+          </Link>
+          <Link
+            href="/reportes/turnos"
+            className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-neutral-700 px-3 text-xs text-neutral-300 hover:bg-neutral-800"
+          >
+            Turnos
+          </Link>
         </nav>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
         <Card label="Recaudación" value={formatARS(t.collected)} tone="green" />
         <Card label="Cobros" value={t.sessions} />
         <Card label="Ticket promedio" value={formatARS(t.avg_cents)} />
@@ -357,12 +371,12 @@ export default async function ReportesPage({
           <h2 className="text-sm font-medium text-neutral-300">Impacto de abonos</h2>
           <Link
             href="/reportes/abonados"
-            className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+            className="inline-flex min-h-9 items-center rounded-md border border-neutral-700 px-2.5 text-xs text-neutral-300 hover:bg-neutral-800"
           >
             Ver detalle de abonados →
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
           <Card label="Abonados activos" value={impact.active_count} />
           <Card label="Ingreso recurrente mensual" value={formatARS(impact.recurring_cents)} tone="green" />
           <Card label="Cobrado por abonos (período)" value={formatARS(impact.period_cents)} tone="green" />
@@ -493,21 +507,25 @@ export default async function ReportesPage({
         <h2 className="bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-300">
           Horas pico de ingresos
         </h2>
-        <div className="flex items-end gap-1 px-4 py-4">
-          {Array.from({ length: 24 }, (_, h) => {
-            const n = hourMap.get(h) ?? 0;
-            const height = n === 0 ? 2 : Math.max(4, Math.round((n / maxHour) * 100));
-            return (
-              <div key={h} className="flex flex-1 flex-col items-center gap-1">
-                <div
-                  className="w-full rounded-t bg-amber-500/70"
-                  style={{ height: `${height}px` }}
-                  title={`${h}:00 — ${n} ingresos`}
-                />
-                <span className="text-[10px] text-neutral-600">{h}</span>
-              </div>
-            );
-          })}
+        <div className="scroll-x px-3 py-4 sm:px-4">
+          <div className="flex min-w-[460px] items-end gap-1">
+            {Array.from({ length: 24 }, (_, h) => {
+              const n = hourMap.get(h) ?? 0;
+              const height = n === 0 ? 2 : Math.max(4, Math.round((n / maxHour) * 100));
+              return (
+                <div key={h} className="flex flex-1 flex-col items-center gap-1">
+                  <div
+                    className="w-full rounded-t bg-amber-500/70"
+                    style={{ height: `${height}px` }}
+                    title={`${h}:00 — ${n} ingresos`}
+                  />
+                  <span className="text-[10px] tabular-nums text-neutral-600">
+                    {h % 3 === 0 ? h : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -590,17 +608,17 @@ function ChartPanel({
         <h2 className="text-sm font-medium text-neutral-300">{title}</h2>
         {hint && <p className="mt-0.5 text-xs text-neutral-500">{hint}</p>}
       </div>
-      <div className="px-4 py-4">{children}</div>
+      <div className="px-3 py-3 sm:px-4 sm:py-4">{children}</div>
     </section>
   );
 }
 
 function Card({ label, value, tone = "neutral" }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-      <p className="text-xs text-neutral-500">{label}</p>
+    <div className="min-w-0 rounded-xl border border-neutral-800 bg-neutral-900 p-3 sm:p-4">
+      <p className="text-[11px] text-neutral-500 sm:text-xs">{label}</p>
       <p
-        className={`mt-1 text-2xl font-semibold tabular-nums ${
+        className={`mt-1 break-words text-lg font-semibold tabular-nums sm:text-2xl ${
           tone === "green" ? "text-emerald-400" : "text-neutral-100"
         }`}
       >
@@ -612,9 +630,11 @@ function Card({ label, value, tone = "neutral" }: { label: string; value: string
 
 function Row({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="overflow-x-auto rounded-xl border border-neutral-800">
-      <h2 className="bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-300">{title}</h2>
-      <table className="w-full text-sm">
+    <section className="scroll-x rounded-xl border border-neutral-800">
+      <h2 className="sticky left-0 bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-300">
+        {title}
+      </h2>
+      <table className="w-full min-w-[380px] text-sm">
         {children}
       </table>
     </section>
@@ -623,7 +643,7 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
 
 function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return (
-    <th className={`px-4 py-2 font-medium ${right ? "text-right" : ""}`}>{children}</th>
+    <th className={`px-3 py-2 font-medium sm:px-4 ${right ? "text-right" : ""}`}>{children}</th>
   );
 }
 
@@ -640,7 +660,7 @@ function Td({
 }) {
   return (
     <td
-      className={`px-4 py-2.5 ${
+      className={`px-3 py-2.5 sm:px-4 ${
         right ? "text-right tabular-nums" : ""
       } ${strong ? "font-medium text-neutral-100" : "text-neutral-300"} ${mono ? "font-mono text-xs" : ""}`}
     >

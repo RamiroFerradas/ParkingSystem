@@ -122,7 +122,7 @@ export function UsersManager({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Usuarios</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Usuarios</h1>
         <p className="text-sm text-neutral-500">
           Alta de empleados y roles. Un usuario desactivado no puede iniciar
           sesión; siempre queda un administrador activo.
@@ -138,7 +138,7 @@ export function UsersManager({
       {/* Alta */}
       <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
         <h2 className="text-sm font-medium text-neutral-300">Nuevo usuario</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <input
             className={inputCls}
             type="email"
@@ -177,8 +177,8 @@ export function UsersManager({
       </section>
 
       {/* Listado */}
-      <section className="overflow-hidden rounded-xl border border-neutral-800">
-        <table className="w-full text-sm">
+      <section className="scroll-x rounded-xl border border-neutral-800">
+        <table className="w-full min-w-[420px] text-sm">
           <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
             <tr>
               <th className="px-4 py-2 font-medium">Usuario</th>

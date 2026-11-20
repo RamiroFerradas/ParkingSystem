@@ -105,7 +105,7 @@ export function SpecialsManager({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Tarifas especiales</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Tarifas especiales</h1>
         <p className="text-sm text-neutral-500">
           Períodos con ajuste sobre el tarifario base (ej. feriados, eventos).
           Menor prioridad gana ante superposición.
@@ -120,7 +120,7 @@ export function SpecialsManager({
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
         <h2 className="text-sm font-medium text-neutral-300">Nuevo período</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <input className={inputCls} placeholder="Nombre (ej. Feriado)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
           <label className="text-xs text-neutral-500">
             Desde

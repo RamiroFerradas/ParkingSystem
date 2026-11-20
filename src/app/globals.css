@@ -96,6 +96,33 @@
     cursor: not-allowed;
   }
 
+  /*
+   * Mobile: Tailwind v4 trae `-webkit-tap-highlight-color` por defecto, que
+   * pinta un flash azul sobre cada tap. En una PWA instalada eso delata que es
+   * una web; acá el feedback lo dan los estados activos.
+   */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  /*
+   * iOS hace zoom automático al enfocar un campo con font-size < 16px, y ese
+   * zoom deja el layout roto hasta que el usuario lo pellizca. En el teléfono
+   * los campos de datos van a 16px aunque el diseño use 14px.
+   */
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
   ::selection {
     background-color: var(--color-amber-400);
     color: var(--color-neutral-950);
@@ -105,6 +132,23 @@
     outline: 2px solid var(--color-amber-400);
     outline-offset: 2px;
   }
+}
+
+/* Área segura del teléfono: el notch y la barra de gestos no tapan la barra inferior. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Contenedor de tablas y gráficos anchos en pantallas chicas. */
+@utility scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 /*

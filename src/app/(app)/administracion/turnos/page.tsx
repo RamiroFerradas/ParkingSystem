@@ -101,7 +101,7 @@ export default async function TurnosPage() {
     <div className="mx-auto max-w-lg space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Turnos de caja</h1>
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Turnos de caja</h1>
           <p className="text-sm text-neutral-500">
             El turno agrupa los ingresos y cobros de la jornada. El empleado cierra el
             turno que abrió; admin y supervisor, cualquiera. No se cierra con autos

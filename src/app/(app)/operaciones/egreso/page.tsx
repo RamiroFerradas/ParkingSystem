@@ -36,7 +36,7 @@ export default async function EgresoPage({
     return (
       <div className="space-y-6">
         <header>
-          <h1 className="text-xl font-semibold tracking-tight">Registrar egreso</h1>
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Registrar egreso</h1>
           <p className="text-sm text-neutral-500">
             Elegí la estadía a cobrar
           </p>
@@ -70,7 +70,7 @@ export default async function EgresoPage({
           </span>
         </div>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Registrar egreso</h1>
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Registrar egreso</h1>
           <p className="font-mono text-xs text-neutral-500">
             Ticket #{data.ticketNumber} · Box {data.boxNumber} · ingresó{" "}
             {formatTime(data.entryAt)}

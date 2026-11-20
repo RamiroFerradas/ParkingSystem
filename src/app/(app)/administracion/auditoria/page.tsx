@@ -52,7 +52,7 @@ export default async function AuditoriaPage({
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Auditoría</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Auditoría</h1>
         <p className="text-sm text-neutral-500">
           Registro append-only de acciones del sistema (últimos 200 eventos).
         </p>

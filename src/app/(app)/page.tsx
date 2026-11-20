@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { query } from "@/lib/db/client";
-import { formatARS } from "@/lib/format";
+import { formatARS, formatElapsed } from "@/lib/format";
 import { getBranchContext } from "@/lib/auth/context";
+import { loadOpenShiftSummary } from "@/lib/queries/shift-summary";
 import { MiniBoxMap } from "@/components/boxes/mini-box-map";
 
 /**
@@ -42,6 +43,15 @@ export default function DashboardPage() {
       <section aria-label="Mapa compacto de boxes" className="grid grid-cols-1 gap-3 sm:gap-4">
         <Suspense fallback={<SkeletonCard />}>
           <MiniBoxMapSection />
+        </Suspense>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+        <Suspense fallback={<SkeletonCard />}>
+          <ShiftCard />
+        </Suspense>
+        <Suspense fallback={<SkeletonCard />}>
+          <SubscriptionsCard />
         </Suspense>
       </section>
 
@@ -138,6 +148,138 @@ async function MiniBoxMapSection() {
   if (!context?.branchId) return null;
   if (!context.can("box.read")) return null;
   return <MiniBoxMap branchId={context.branchId} />;
+}
+
+/** Turno de caja abierto: quién lo abrió, recaudado y autos adentro. */
+async function ShiftCard() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
+  const shift = await loadOpenShiftSummary(context.branchId, {
+    userId: context.user.userId,
+    role: context.role,
+  });
+  const canManage = context.can("shift.manage");
+
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-neutral-200">Turno de caja</p>
+          <p className="mt-0.5 text-[11px] text-neutral-500">
+            {shift
+              ? `Abrió ${shift.openedByName} a las ${shift.openedAtLabel} hs`
+              : "No hay turno abierto"}
+          </p>
+        </div>
+        {canManage && (
+          <Link
+            href="/administracion/turnos"
+            className="shrink-0 rounded-md border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
+          >
+            Ver turnos
+          </Link>
+        )}
+      </div>
+
+      {shift ? (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[11px] text-neutral-500">Recaudado en el turno</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-400">
+              {shift.collectedLabel}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] text-neutral-500">Autos adentro</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-neutral-100">
+              {shift.openSessions}
+            </p>
+          </div>
+          <p className="col-span-2 text-[11px] text-neutral-500">
+            Abierto hace {formatElapsed(shift.elapsedMinutes)}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-neutral-400">
+          Abrí un turno para registrar ingresos y cobros.{" "}
+          {canManage && (
+            <Link href="/administracion/turnos" className="underline">
+              Abrir turno
+            </Link>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Impacto de abonos en el día: activos, recurrente y próximos vencimientos. */
+async function SubscriptionsCard() {
+  const context = await getBranchContext();
+  if (!context?.branchId) return null;
+  if (!context.can("reports.read")) return null;
+
+  const rows = await query<{
+    active: string;
+    recurring: string;
+    expiring: string;
+  }>(
+    `SELECT count(*) FILTER (
+              WHERE starts_on <= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
+                AND ends_on >= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
+            )::text AS active,
+            COALESCE(sum(amount_cents) FILTER (
+              WHERE starts_on <= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
+                AND ends_on >= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
+            ), 0)::text AS recurring,
+            count(*) FILTER (
+              WHERE ends_on BETWEEN (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
+                                AND (now() AT TIME ZONE 'America/Argentina/Cordoba')::date + 30
+            )::text AS expiring
+       FROM subscriptions
+      WHERE branch_id = $1 AND status = 'active'`,
+    [context.branchId],
+  );
+  const s = rows[0] ?? { active: "0", recurring: "0", expiring: "0" };
+
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-neutral-200">Abonados</p>
+          <p className="mt-0.5 text-[11px] text-neutral-500">
+            Vigentes hoy y facturación recurrente
+          </p>
+        </div>
+        <Link
+          href="/reportes/abonados"
+          className="shrink-0 rounded-md border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
+        >
+          Ver detalle
+        </Link>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <div>
+          <p className="text-[11px] text-neutral-500">Activos</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-400">
+            {s.active}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] text-neutral-500">Recurrente / mes</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-neutral-100">
+            {formatARS(s.recurring)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] text-neutral-500">Vencen 30 días</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-amber-400">
+            {s.expiring}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**

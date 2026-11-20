@@ -104,10 +104,10 @@ export default async function BoxesReportPage({
     `/reportes/boxes?m=${month}${targetPage > 1 ? `&page=${targetPage}` : ""}`;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Boxes con más movimiento</h1>
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Boxes con más movimiento</h1>
           <p className="text-sm text-neutral-500">
             Ranking del mes de {monthLabel(month)}: cantidad de estadías por box.
           </p>
@@ -140,7 +140,7 @@ export default async function BoxesReportPage({
         </div>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3">
         <Card label="Movimientos del mes" value={summary.movements} />
         <Card label="Boxes con movimiento" value={summary.boxes} />
         <Card label="Recaudado" value={formatARS(summary.billed)} tone="green" />

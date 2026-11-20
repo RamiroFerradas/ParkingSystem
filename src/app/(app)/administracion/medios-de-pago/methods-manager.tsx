@@ -73,7 +73,7 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Medios de pago</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Medios de pago</h1>
         <p className="text-sm text-neutral-500">
           Medios con los que se cierran las estadías. Desactivar un medio no
           afecta los pagos históricos.

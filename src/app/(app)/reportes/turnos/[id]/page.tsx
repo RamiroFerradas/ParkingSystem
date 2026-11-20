@@ -155,10 +155,10 @@ export default async function TurnoDetallePage({
   const stillOpen = Number(summary.still_open);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
             Turno del {formatDate(shift.opened_at)} · {formatTime(shift.opened_at)}
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
@@ -190,7 +190,7 @@ export default async function TurnoDetallePage({
         </p>
       )}
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
         <Card label="Facturado" value={formatARS(summary.collected)} tone="green" />
         <Card label="Cobros" value={summary.paid_count} />
         <Card label="Autos ingresados" value={summary.entered} />

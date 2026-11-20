@@ -211,7 +211,7 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Abonados</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Abonados</h1>
         <p className="mt-1 text-sm text-neutral-500">
           Abonos mensuales por patente. El cobro se registra en el turno de caja abierto.
         </p>
@@ -243,7 +243,7 @@ export function AbonadosManager({ methods }: { methods: MethodOpt[] }) {
           </p>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <label className="flex flex-col gap-1 text-[11px] text-neutral-500">
             Patente
             <input

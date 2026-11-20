@@ -138,10 +138,10 @@ export default async function AbonadosReportPage() {
   const expiring = subscriptions.filter((row) => row.days_left <= EXPIRING_DAYS);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Impacto de abonos</h1>
+          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Impacto de abonos</h1>
           <p className="text-sm text-neutral-500">
             Abonados vigentes, ingreso recurrente y cobros de los últimos 12 meses.
           </p>
@@ -154,7 +154,7 @@ export default async function AbonadosReportPage() {
         </Link>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
         <Card label="Activos hoy" value={String(activeCount)} />
         <Card label="Ingreso recurrente mensual" value={formatARS(recurringCents)} tone="green" />
         <Card label="Cobrado por abonos (12 meses)" value={formatARS(collectedCents)} tone="green" />

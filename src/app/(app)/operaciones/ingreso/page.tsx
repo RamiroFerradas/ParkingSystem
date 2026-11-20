@@ -51,7 +51,7 @@ export default async function IngresoPage() {  const user = await getSessionUser
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Registrar ingreso</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Registrar ingreso</h1>
         <p className="text-sm text-neutral-500">
           La fecha y hora se registran automáticamente. Ingresá la patente,
           elegí el box y confirmá.

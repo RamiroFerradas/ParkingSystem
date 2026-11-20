@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { AppHeader } from "@/components/shell/app-header";
+import { MobileNavProvider } from "@/components/shell/mobile-nav";
 import type { BranchContext } from "@/lib/auth/context";
 import type { OpenShiftSummary } from "@/lib/shifts/types";
 
@@ -72,6 +73,25 @@ const SHIFT: OpenShiftSummary = {
   canClose: true,
 };
 
+/**
+ * The header renders the mobile hamburger, which reads its shared state from
+ * MobileNavProvider (mounted by the app layout, not by the header itself).
+ */
+function header(context: BranchContext, shift: OpenShiftSummary | null) {
+  return (
+    <MobileNavProvider groups={[]}>
+      <AppHeader context={context} shift={shift} />
+    </MobileNavProvider>
+  );
+}
+
+function renderHeader(
+  context: BranchContext,
+  shift: OpenShiftSummary | null,
+) {
+  return render(header(context, shift));
+}
+
 beforeEach(() => {
   Object.defineProperty(navigator, "onLine", {
     value: true,
@@ -81,7 +101,7 @@ beforeEach(() => {
 
 describe("AppHeader", () => {
   it("shows the brand and the module subtitle", () => {
-    render(<AppHeader context={makeContext()} shift={null} />);
+    renderHeader(makeContext(), null);
 
     expect(screen.getByText("Mauricio's Parking")).toBeInTheDocument();
     expect(screen.getByText("Gestión de estacionamiento")).toBeInTheDocument();
@@ -89,7 +109,7 @@ describe("AppHeader", () => {
   });
 
   it("places the active branch in the branch pill", () => {
-    render(<AppHeader context={makeContext()} shift={null} />);
+    renderHeader(makeContext(), null);
 
     expect(
       screen.getByRole("button", { name: /Centro/ }),
@@ -97,12 +117,7 @@ describe("AppHeader", () => {
   });
 
   it("falls back to the branch placeholder without an active branch", () => {
-    render(
-      <AppHeader
-        context={makeContext({ branchId: null, branchName: null })}
-        shift={null}
-      />,
-    );
+    renderHeader(makeContext({ branchId: null, branchName: null }), null);
 
     expect(
       screen.getByRole("button", { name: /Elegí una sucursal/ }),
@@ -111,21 +126,17 @@ describe("AppHeader", () => {
 
   it("renders the shift control only with the shift.manage permission", () => {
     const can = vi.fn(() => true);
-    const { rerender } = render(
-      <AppHeader context={makeContext({ can })} shift={null} />,
-    );
+    const { rerender } = renderHeader(makeContext({ can }), null);
 
     expect(can).toHaveBeenCalledWith("shift.manage");
     expect(screen.getByText("Sin turno abierto")).toBeInTheDocument();
 
-    rerender(
-      <AppHeader context={makeContext({ can: vi.fn(() => false) })} shift={null} />,
-    );
+    rerender(header(makeContext({ can: vi.fn(() => false) }), null));
     expect(screen.queryByText("Sin turno abierto")).toBeNull();
   });
 
   it("passes the open shift down to the shift control", () => {
-    render(<AppHeader context={makeContext()} shift={SHIFT} />);
+    renderHeader(makeContext(), SHIFT);
 
     expect(
       screen.getByRole("button", { name: /Turno abierto/ }),
@@ -133,7 +144,7 @@ describe("AppHeader", () => {
   });
 
   it("maps the role to its label in the user menu", () => {
-    render(<AppHeader context={makeContext()} shift={null} />);
+    renderHeader(makeContext(), null);
 
     expect(
       screen.getByRole("button", { name: "Administrador" }),
@@ -141,26 +152,19 @@ describe("AppHeader", () => {
   });
 
   it("falls back to the role key for unknown roles", () => {
-    render(
-      <AppHeader
-        context={makeContext({ role: "supervisor" })}
-        shift={null}
-      />,
-    );
+    renderHeader(makeContext({ role: "supervisor" }), null);
     expect(screen.getByRole("button", { name: "Supervisor" })).toBeInTheDocument();
   });
 
   it("labels a master without a branch as Master", () => {
-    render(
-      <AppHeader
-        context={makeContext({
-          role: null,
-          branchId: null,
-          branchName: null,
-          isMaster: true,
-        })}
-        shift={null}
-      />,
+    renderHeader(
+      makeContext({
+        role: null,
+        branchId: null,
+        branchName: null,
+        isMaster: true,
+      }),
+      null,
     );
 
     expect(screen.getByRole("button", { name: "Master" })).toBeInTheDocument();
@@ -168,7 +172,7 @@ describe("AppHeader", () => {
 
   it("shows the user identity and branch inside the user menu", async () => {
     const user = userEvent.setup();
-    render(<AppHeader context={makeContext()} shift={null} />);
+    renderHeader(makeContext(), null);
 
     await user.click(screen.getByRole("button", { name: "Administrador" }));
 

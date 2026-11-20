@@ -54,47 +54,55 @@ export function StackedMonthBars({
 
   return (
     <div>
-      <div
-        className="flex items-end gap-0.5 sm:gap-2"
-        role="img"
-        aria-label={`Facturación por mes. ${summary}`}
-      >
-        {data.map((d) => {
-          const total = d.sessionsCents + d.abonoCents;
-          const heightPx =
-            total === 0 ? 0 : Math.max(2, Math.round((total / max) * BAR_AREA_PX));
-          const abonoPx =
-            total === 0 ? 0 : Math.round((d.abonoCents / total) * heightPx);
-          const sessionsPx = heightPx - abonoPx;
-          return (
-            <div
-              key={d.month}
-              className="flex min-w-0 flex-1 flex-col items-center justify-end"
-              title={`${d.label}: ${formatARS(total)}${
-                d.entries > 0 ? ` · ${d.entries} cobros` : ""
-              }`}
-            >
-              <span className="mb-1 hidden h-4 text-[10px] leading-none tabular-nums text-neutral-500 sm:block">
-                {total > 0 ? compactARS(total) : ""}
-              </span>
+      <div className="scroll-x">
+        <div
+          className="flex min-w-[380px] items-end gap-1 sm:min-w-0 sm:gap-2"
+          role="img"
+          aria-label={`Facturación por mes. ${summary}`}
+        >
+          {data.map((d) => {
+            const total = d.sessionsCents + d.abonoCents;
+            const heightPx =
+              total === 0 ? 0 : Math.max(2, Math.round((total / max) * BAR_AREA_PX));
+            const abonoPx =
+              total === 0 ? 0 : Math.round((d.abonoCents / total) * heightPx);
+            const sessionsPx = heightPx - abonoPx;
+            return (
               <div
-                className="flex w-full max-w-8 flex-col justify-end overflow-hidden rounded-t-sm bg-neutral-800/60"
-                style={{ height: `${heightPx}px` }}
+                key={d.month}
+                className="flex min-w-0 flex-1 flex-col items-center justify-end"
+                title={`${d.label}: ${formatARS(total)}${
+                  d.entries > 0 ? ` · ${d.entries} cobros` : ""
+                }`}
               >
-                {abonoPx > 0 && (
-                  <div className="w-full bg-emerald-500/80" style={{ height: `${abonoPx}px` }} />
-                )}
-                {sessionsPx > 0 && (
-                  <div className="w-full bg-amber-500/80" style={{ height: `${sessionsPx}px` }} />
-                )}
+                <span className="mb-1 hidden h-4 text-[10px] leading-none tabular-nums text-neutral-500 sm:block">
+                  {total > 0 ? compactARS(total) : ""}
+                </span>
+                <div
+                  className="flex w-full max-w-8 flex-col justify-end overflow-hidden rounded-t-sm bg-neutral-800/60"
+                  style={{ height: `${heightPx}px` }}
+                >
+                  {abonoPx > 0 && (
+                    <div
+                      className="w-full bg-emerald-500/80"
+                      style={{ height: `${abonoPx}px` }}
+                    />
+                  )}
+                  {sessionsPx > 0 && (
+                    <div
+                      className="w-full bg-amber-500/80"
+                      style={{ height: `${sessionsPx}px` }}
+                    />
+                  )}
+                </div>
+                <span className="mt-1 text-[10px] leading-none whitespace-nowrap text-neutral-500">
+                  <span className="sm:hidden">{d.label.slice(0, 3)}</span>
+                  <span className="hidden sm:inline">{d.label}</span>
+                </span>
               </div>
-              <span className="mt-1 text-[10px] leading-none whitespace-nowrap text-neutral-500">
-                <span className="sm:hidden">{d.label.slice(0, 3)}</span>
-                <span className="hidden sm:inline">{d.label}</span>
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
       {showLegend && (
         <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-neutral-400">

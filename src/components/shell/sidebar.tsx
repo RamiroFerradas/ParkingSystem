@@ -1,18 +1,14 @@
-import type { BranchContext } from "@/lib/auth/context";
-import { NAV_GROUPS, filterNavGroups } from "./nav-config";
+import type { NavGroup } from "./nav-config";
 import { SidebarNav } from "./sidebar-nav";
 
-/** Navegación del shell. El contexto global (sucursal, turno, usuario) vive en el header. */
-export function Sidebar({ context }: { context: BranchContext }) {
-  // El menú muestra solo lo que el usuario puede abrir en la sucursal activa:
-  // el empleado no ve secciones de administración ni reportes, en vez de
-  // chocar contra "Acceso restringido".
-  const groups = filterNavGroups(NAV_GROUPS, context.can, {
-    isMaster: context.isMaster,
-  });
-
+/**
+ * Navegación del shell. El contexto global (sucursal, turno, usuario) vive en
+ * el header. En el teléfono no se renderiza: la navegación es la barra
+ * inferior más la hoja "Más".
+ */
+export function Sidebar({ groups }: { groups: NavGroup[] }) {
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900">
+    <aside className="hidden h-full w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900 lg:flex">
       <SidebarNav groups={groups} />
     </aside>
   );

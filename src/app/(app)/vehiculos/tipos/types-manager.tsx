@@ -56,7 +56,7 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Tipos de vehículos</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Tipos de vehículos</h1>
         <p className="text-sm text-neutral-500">
           Los tipos alimentan el tarifario y la clasificación de estadías.
         </p>
@@ -88,8 +88,8 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-neutral-800">
-        <table className="w-full text-sm">
+      <section className="scroll-x rounded-xl border border-neutral-800">
+        <table className="w-full min-w-[420px] text-sm">
           <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
             <tr>
               <th className="px-4 py-2 font-medium">Nombre</th>

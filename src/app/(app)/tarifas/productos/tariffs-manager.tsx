@@ -104,7 +104,7 @@ export function TariffsManager({
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Tarifas por vehículo</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Tarifas por vehículo</h1>
         <p className="mt-1 text-sm text-neutral-500">
           Cada tipo de vehículo tiene sus bloques por hora y su abono mensual. La vigencia{" "}
           <span className="text-amber-300">Temporal</span> reemplaza al bloque fijo de la
@@ -228,7 +228,7 @@ function VehicleCard({
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+    <section className="scroll-x rounded-xl border border-neutral-800 bg-neutral-950">
       <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900 px-4 py-2.5">
         <h2 className="text-sm font-medium text-neutral-200">{vt.name}</h2>
         <span className="text-xs text-neutral-500">
@@ -241,7 +241,7 @@ function VehicleCard({
           Sin bloques cargados: agregá el primero abajo.
         </p>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[420px] text-sm">
           <thead className="bg-neutral-900/60 text-left text-xs text-neutral-500">
             <tr>
               <th className="px-4 py-2 font-medium">Bloque</th>
@@ -395,7 +395,7 @@ function MonthlyPlans({
           Sin abonos cargados para este tipo de vehículo.
         </p>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[420px] text-sm">
           <thead className="bg-neutral-900/60 text-left text-xs text-neutral-500">
             <tr>
               <th className="px-4 py-2 font-medium">Plan</th>

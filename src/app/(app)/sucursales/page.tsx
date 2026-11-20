@@ -36,7 +36,7 @@ async function BranchesGate() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight text-neutral-100">
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl text-neutral-100">
           Sucursales
         </h1>
         <p className="text-sm text-neutral-500">

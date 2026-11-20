@@ -164,25 +164,25 @@ export default async function MapaBoxesPage({
   const sortedFloors = [...floors.values()].filter((floor) => floor.boxes.length > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Mapa de boxes</h1>
-        <p className="text-sm text-neutral-500">
-          Estado en tiempo real de los boxes, organizados por piso
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Mapa de boxes</h1>
+        <p className="text-xs text-neutral-500 sm:text-sm">
+          Estado de los boxes por piso · se actualiza solo cada 15 segundos
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-4 text-xs text-neutral-400">
-        <span>
-          <span className="mr-1 inline-block size-2 rounded-full bg-emerald-500" />
+      <div className="flex flex-wrap gap-2 text-[11px] sm:text-xs">
+        <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-emerald-300">
+          <span className="size-1.5 rounded-full bg-emerald-500" />
           Libres: {counts.available}
         </span>
-        <span>
-          <span className="mr-1 inline-block size-2 rounded-full bg-amber-500" />
+        <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 text-amber-300">
+          <span className="size-1.5 rounded-full bg-amber-500" />
           Ocupados: {counts.occupied}
         </span>
-        <span>
-          <span className="mr-1 inline-block size-2 rounded-full bg-red-500" />
+        <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 text-red-300">
+          <span className="size-1.5 rounded-full bg-red-500" />
           Fuera de servicio: {counts.out_of_service}
         </span>
       </div>

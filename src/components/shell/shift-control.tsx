@@ -142,15 +142,17 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
                 }`}
                 aria-hidden="true"
               />
-              <span>Turno abierto</span>
-              <span className="opacity-60">·</span>
+              <span className="hidden sm:inline">Turno abierto</span>
+              <span className="hidden opacity-60 sm:inline">·</span>
               <span className="tabular-nums">{formatElapsedText(elapsedMinutes)}</span>
               {shift.openSessions > 0 ? (
-                <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                <span className="hidden rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 sm:inline">
                   {shift.openSessions} {shift.openSessions === 1 ? "auto" : "autos"}
                 </span>
               ) : null}
-              {overdue ? <span className="font-semibold">· ¿lo cerraste?</span> : null}
+              {overdue ? (
+                <span className="hidden font-semibold sm:inline">· ¿lo cerraste?</span>
+              ) : null}
             </button>
             {shift.canClose ? (
               <button
@@ -161,7 +163,7 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
                   setError(null);
                 }}
                 className={
-                  "rounded-md px-2.5 py-1.5 text-xs font-semibold " +
+                  "hidden rounded-md px-2.5 py-1.5 text-xs font-semibold sm:block " +
                   (overdue
                     ? "bg-amber-500 text-neutral-950 hover:bg-amber-400"
                     : "border border-neutral-700 text-neutral-300 hover:bg-neutral-800")
@@ -173,10 +175,11 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
           </>
         ) : (
           <>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
+            <span className="hidden items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 sm:inline-flex">
               <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
               Sin turno abierto
             </span>
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-amber-400 sm:hidden" />
             <button
               type="button"
               onClick={openShift}
@@ -193,7 +196,7 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
         <div
           role="dialog"
           aria-label="Turno de caja"
-          className="absolute left-0 top-full z-50 mt-2 w-80 rounded-lg border border-neutral-700 bg-neutral-900 p-4 shadow-2xl"
+          className="absolute left-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-1.5rem))] rounded-lg border border-neutral-700 bg-neutral-900 p-4 shadow-2xl"
         >
           <div className="flex items-start justify-between gap-3">
             <div>

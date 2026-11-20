@@ -311,7 +311,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
             Patente
           </label>
           {/* La patente se escribe sobre una chapa: mismo formato que el operador lee */}
-          <div className="mt-1.5 w-full max-w-64 overflow-hidden rounded-md bg-plate shadow-[0_1px_0_rgba(0,0,0,0.55)]">
+          <div className="mt-1.5 w-full max-w-full overflow-hidden sm:max-w-64 rounded-md bg-plate shadow-[0_1px_0_rgba(0,0,0,0.55)]">
             <div className="h-1.5 bg-plate-blue" />
             <input
               id="plate"
@@ -361,7 +361,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
               required
               value={vehicleTypeId}
               onChange={(e) => setVehicleTypeId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+              className="mt-1 w-full min-h-11 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
             >
               <option value="">Seleccionar...</option>
               {vehicleTypes.map((t) => (
@@ -390,7 +390,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
           value={boxFilter}
           onChange={(e) => setBoxFilter(e.target.value)}
           placeholder="Escribí el número de box..."
-          className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+          className="mt-1 w-full min-h-11 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
         />
         <div data-box-picker className="mt-3 grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {[...boxesByFloor.entries()].map(([floorName, boxes]) => (
@@ -415,7 +415,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
                         setPendingMove(null);
                       }}
                       className={
-                        "min-w-10 rounded-md border px-2 py-1.5 font-mono text-sm font-medium tabular-nums transition-colors " +
+                        "min-h-11 min-w-11 rounded-md border px-2 py-1.5 font-mono text-sm font-medium tabular-nums transition-colors " +
                         (selected
                           ? "border-neutral-100 bg-neutral-100 text-neutral-900"
                           : "border-neutral-700 bg-neutral-950 text-neutral-300 hover:border-neutral-500 hover:text-neutral-100")
@@ -443,7 +443,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+            className="mt-1 w-full min-h-11 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
           />
         </div>
 
@@ -474,7 +474,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
           value={damage}
           onChange={(e) => setDamage(e.target.value)}
           placeholder="Ej: rayón en puerta trasera derecha, paragolpes hundido..."
-          className="mt-1 w-full resize-y rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+          className="mt-1 w-full resize-y min-h-11 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
         />
         <p className="mt-1 text-[11px] text-neutral-600">{damage.length}/500</p>
       </div>

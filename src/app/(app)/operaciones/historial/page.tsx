@@ -19,7 +19,7 @@ export default async function HistorialPage({
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Historial de estadías</h1>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Historial de estadías</h1>
         <p className="text-sm text-neutral-500">
           {scope.ownerId
             ? "Tus estadías (las que registraste), abiertas y cerradas, con filtros por URL"
