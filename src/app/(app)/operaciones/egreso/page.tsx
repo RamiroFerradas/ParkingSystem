@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { formatElapsed, formatTime } from "@/lib/format";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { EgresoForm, type EgresoData, type FeeBreakdown } from "./egreso-form";
 
 /**
@@ -20,16 +21,7 @@ export default async function EgresoPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "session.close"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            No tenés habilitado el registro de egresos.
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="No tenés habilitado el registro de egresos." />;
   }
 
   if (!sessionId) {

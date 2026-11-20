@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { formatARS, formatDate, formatElapsed, formatTime } from "@/lib/format";
 import { printSessionTicket } from "@/lib/print/client";
+import { btnGhostCls } from "@/lib/ui-classes";
 
 export interface HistorialRow {
   id: string;
@@ -136,7 +137,7 @@ export function HistorialTable({ rows }: { rows: HistorialRow[] }) {
             type="button"
             disabled={printingId === info.row.original.id}
             onClick={() => reprint(info.row.original)}
-            className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-40"
+            className={btnGhostCls}
           >
             {printingId === info.row.original.id ? "..." : "Reimprimir"}
           </button>

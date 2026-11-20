@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLE_LABELS } from "@/components/shell/nav-config";
 import { PromptDialog } from "@/components/ui/dialog";
+import { Alert } from "@/components/ui/alert";
+import { btnCls, inputCls } from "@/lib/ui-classes";
 import { PermissionsEditor } from "./permissions-editor";
 
 export interface ManagedUser {
@@ -13,11 +15,6 @@ export interface ManagedUser {
   role: string;
   is_active: boolean;
 }
-
-const inputCls =
-  "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500";
-const btnCls =
-  "rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-40";
 
 export function UsersManager({
   currentUserId,
@@ -129,11 +126,7 @@ export function UsersManager({
         </p>
       </header>
 
-      {error && (
-        <p className="rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <Alert>{error}</Alert>}
 
       {/* Alta */}
       <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">

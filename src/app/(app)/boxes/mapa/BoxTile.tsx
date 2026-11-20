@@ -1,6 +1,7 @@
 "use client";
 
 import { formatTime } from "@/lib/format";
+import { cx } from "@/lib/ui-classes";
 
 export type BoxTileStatus = "available" | "occupied" | "out_of_service";
 
@@ -63,11 +64,12 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
             }
           : undefined
       }
-      className={`flex min-h-[96px] touch-manipulation flex-col justify-between rounded-lg border p-2.5 transition active:scale-[0.98] sm:min-h-[88px] sm:p-3 ${
-        isActive ? STATUS_STYLE[status] : INACTIVE_STYLE
-      } ${editable ? "cursor-pointer hover:border-neutral-400" : ""} ${
-        selected ? "ring-2 ring-amber-400" : ""
-      }`}
+      className={cx(
+        "flex min-h-[96px] touch-manipulation flex-col justify-between rounded-lg border p-2.5 transition active:scale-[0.98] sm:min-h-[88px] sm:p-3",
+        isActive ? STATUS_STYLE[status] : INACTIVE_STYLE,
+        editable && "cursor-pointer hover:border-neutral-400",
+        selected && "ring-2 ring-amber-400",
+      )}
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-base font-semibold tracking-tight sm:text-lg">

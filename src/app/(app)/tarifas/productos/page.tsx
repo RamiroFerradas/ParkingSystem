@@ -2,6 +2,7 @@ import { query } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { TariffsManager } from "./tariffs-manager";
 
 // La página consulta la DB en el servidor; en Next 16 dev la navegación se
@@ -12,16 +13,7 @@ export default async function ProductosTarifariosPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "tariff.manage"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Solo el administrador puede gestionar el tarifario.
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="Solo el administrador puede gestionar el tarifario." />;
   }
 
   const [tariffs, types] = await Promise.all([

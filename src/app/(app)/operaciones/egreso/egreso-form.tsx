@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { printSessionTicket } from "@/lib/print/client";
 import { formatARS, formatElapsed } from "@/lib/format";
+import { btnPrimaryCls } from "@/lib/ui-classes";
 
 export interface FeeBreakdown {
   block: { name: string; amount_cents: number } | null;
@@ -103,7 +104,7 @@ export function EgresoForm({ data }: { data: EgresoData }) {
               type="button"
               onClick={printReceipt}
               disabled={printState.state === "printing"}
-              className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
+              className={btnPrimaryCls}
             >
               {printState.state === "printing" ? "Imprimiendo..." : "Imprimir comprobante"}
             </button>
