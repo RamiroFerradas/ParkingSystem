@@ -84,6 +84,12 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Estadísticas",
     items: [
       { label: "Reportes", href: "/reportes", enabled: true, permission: "reports.read" },
+      {
+        label: "Ranking de boxes",
+        href: "/reportes/boxes",
+        enabled: true,
+        permission: "reports.read",
+      },
     ],
   },
   {

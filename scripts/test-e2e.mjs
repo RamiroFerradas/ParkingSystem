@@ -535,6 +535,17 @@ try {
     `status=${empHomeRes.status}`,
   );
 
+  // reports.read: el ranking mensual de boxes también queda restringido.
+  const empBoxesRes = await fetch(BASE + "/reportes/boxes", {
+    headers: { cookie: cookieHeader() },
+  });
+  const empBoxesHtml = await empBoxesRes.text();
+  ok(
+    "ranking de boxes: empleado bloqueado",
+    empBoxesRes.status === 200 && empBoxesHtml.includes("Acceso restringido"),
+    `status=${empBoxesRes.status}`,
+  );
+
   // Permiso shift.manage: el empleado no gestiona turnos de caja.
   const empTurnosRes = await fetch(BASE + "/administracion/turnos", {
     headers: { cookie: cookieHeader() },
@@ -888,6 +899,37 @@ try {
     reportCsv.split("\n")[1] ?? "",
   );
 
+  // ===== G: ranking mensual de boxes por movimiento (paginado) =====
+  const boxesRes = await fetch(BASE + "/reportes/boxes", { headers: { cookie: cookieHeader() } });
+  const boxesHtml = await boxesRes.text();
+  ok(
+    "ranking de boxes: página con tabla y paginación",
+    boxesRes.status === 200 &&
+      boxesHtml.includes("Boxes con más movimiento") &&
+      boxesHtml.includes("Movimientos") &&
+      boxesHtml.includes('aria-label="Paginación del ranking"'),
+    `status=${boxesRes.status}`,
+  );
+  const boxesEmptyRes = await fetch(BASE + "/reportes/boxes?m=2000-01", {
+    headers: { cookie: cookieHeader() },
+  });
+  const boxesEmptyHtml = await boxesEmptyRes.text();
+  ok(
+    "ranking de boxes: mes sin datos",
+    boxesEmptyRes.status === 200 &&
+      boxesEmptyHtml.includes("Sin movimientos en") &&
+      boxesEmptyHtml.includes("enero de 2000"),
+    `status=${boxesEmptyRes.status}`,
+  );
+  const boxesOutOfRange = await fetch(BASE + "/reportes/boxes?page=99", {
+    headers: { cookie: cookieHeader() },
+  });
+  ok(
+    "ranking de boxes: página fuera de rango se acota",
+    boxesOutOfRange.status === 200,
+    `status=${boxesOutOfRange.status}`,
+  );
+
   // ===== Dashboard: mini mapa de boxes =====
   const dashRes = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
   const dashHtml = await dashRes.text();
@@ -925,6 +967,7 @@ try {
   ok(
     "sidebar: admin si ve secciones restringidas",
     dashHtml.includes('href="/reportes"') &&
+      dashHtml.includes('href="/reportes/boxes"') &&
       dashHtml.includes('href="/administracion/usuarios"') &&
       dashHtml.includes('href="/administracion/auditoria"') &&
       dashHtml.includes('href="/vehiculos"'),

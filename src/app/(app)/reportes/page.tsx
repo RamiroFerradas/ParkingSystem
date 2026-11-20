@@ -164,6 +164,12 @@ export default async function ReportesPage({
               {p.label}
             </Link>
           ))}
+          <Link
+            href="/reportes/boxes"
+            className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+          >
+            Ranking de boxes
+          </Link>
           <a
             href={`/api/reports/export?p=${period.key}`}
             className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
