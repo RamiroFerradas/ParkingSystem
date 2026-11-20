@@ -127,7 +127,7 @@ function NewFloorForm({
       <p className="text-sm font-medium text-neutral-200">Agregar piso</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <input
-          className={inputCls + " w-48"}
+          className={inputCls + " w-full sm:w-48"}
           placeholder="Nombre del piso (ej. Planta baja)"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -135,7 +135,7 @@ function NewFloorForm({
           required
         />
         <input
-          className={inputCls + " w-40"}
+          className={inputCls + " w-full sm:w-40"}
           type="number"
           min={0}
           max={120}
@@ -192,7 +192,7 @@ function FloorCard({
         {renaming ? (
           <>
             <input
-              className={inputCls + " w-52"}
+              className={inputCls + " w-full sm:w-52"}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               maxLength={50}
@@ -286,7 +286,7 @@ function FloorCard({
           }}
         >
           <input
-            className={inputCls + " w-36"}
+            className={inputCls + " w-full sm:w-36"}
             placeholder="Número (ej. PB-31)"
             value={boxNumber}
             onChange={(e) => setBoxNumber(e.target.value)}
@@ -295,7 +295,7 @@ function FloorCard({
             autoFocus
           />
           <input
-            className={inputCls + " w-36"}
+            className={inputCls + " w-full sm:w-36"}
             placeholder="Sector (opcional)"
             value={boxSector}
             onChange={(e) => setBoxSector(e.target.value)}

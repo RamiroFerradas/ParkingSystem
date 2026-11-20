@@ -17,7 +17,7 @@ export default async function HistorialPage({
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <header>
         <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Historial de estadías</h1>
         <p className="text-sm text-neutral-500">
@@ -29,7 +29,7 @@ export default async function HistorialPage({
 
       <FilterForm options={options} filters={filters} />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-neutral-500">
           {rows.length} estadía{rows.length === 1 ? "" : "s"} (máximo 500, más recientes primero)
         </p>
@@ -56,10 +56,10 @@ function FilterForm({
   filters: HistorialFilters;
 }) {
   const selectCls =
-    "rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100";
+    "min-h-10 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100";
   const inputCls =
-    "rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100";
-  const labelCls = "flex flex-col gap-1 text-xs text-neutral-500";
+    "min-h-10 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100";
+  const labelCls = "flex min-w-[8rem] flex-1 flex-col gap-1 text-xs text-neutral-500";
 
   return (
     <form method="get" className="flex flex-wrap items-end gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-4">

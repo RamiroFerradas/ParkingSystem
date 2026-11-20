@@ -53,17 +53,17 @@ async function loadOpenStays(ownerId?: string): Promise<OpenStay[]> {
 
 export default function EstadiasActivasPage() {
   return (
-    <div className="space-y-6">
-      <header className="flex items-baseline justify-between">
-        <div>
+    <div className="space-y-4 sm:space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Estadías activas</h1>
-          <p className="text-sm text-neutral-500">
+          <p className="text-xs text-neutral-500 sm:text-sm">
             Vehículos dentro del estacionamiento en este momento
           </p>
         </div>
         <Link
           href="/operaciones/ingreso"
-          className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-900 hover:bg-white"
+          className="inline-flex min-h-10 items-center rounded-md bg-neutral-100 px-3 text-sm font-medium text-neutral-900 hover:bg-white"
         >
           + Ingreso
         </Link>
