@@ -1,4 +1,10 @@
--- 012_branches.sql — Multi-branch (sucursales).
+-- 014_branches.sql — Multi-branch (sucursales).
+--
+-- Numeración: corre DESPUÉS de 012_user_permissions.sql (que crea
+-- user_permissions) y de 013_condicion_ingreso.sql. open_session se redefine
+-- acá en su forma branch-aware conservando key_left/damage_notes; si esta
+-- migración corriera antes de 013, el cuerpo pre-branch de 013 la pisaría y
+-- cada ingreso fallaría con "column establishment_id does not exist".
 --
 -- Additive first, backfill second, tighten last. The cloud runner tracks applied
 -- migrations in schema_migrations, and every statement here is also individually
@@ -299,6 +305,8 @@ BEGIN
 END $$;
 
 -- ============ 11. open_session: branch derived from the box ============
+-- Misma firma de 9 argumentos que 013_condicion_ingreso.sql, para que
+-- CREATE OR REPLACE sustituya esa versión en vez de crear una sobrecarga.
 CREATE OR REPLACE FUNCTION open_session(
   p_session_id       uuid,
   p_plate            text,
@@ -306,7 +314,9 @@ CREATE OR REPLACE FUNCTION open_session(
   p_box_id           uuid,
   p_actor_id         uuid,
   p_entry_notes      text DEFAULT NULL,
-  p_device_id        uuid DEFAULT NULL
+  p_device_id        uuid DEFAULT NULL,
+  p_key_left         boolean DEFAULT false,
+  p_damage_notes     text DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -370,10 +380,11 @@ BEGIN
   BEGIN
     INSERT INTO parking_sessions
       (id, ticket_number, vehicle_id, vehicle_type_id, box_id, branch_id,
-       opened_by, entry_notes, device_id, shift_id)
+       opened_by, entry_notes, key_left, damage_notes, device_id, shift_id)
     VALUES
       (p_session_id, v_ticket, v_vehicle, p_vehicle_type_id, p_box_id, v_box.branch_id,
-       p_actor_id, p_entry_notes, p_device_id, v_shift);
+       p_actor_id, p_entry_notes, coalesce(p_key_left, false),
+       nullif(btrim(p_damage_notes), ''), p_device_id, v_shift);
   EXCEPTION WHEN unique_violation THEN
     RAISE EXCEPTION 'El box ya está ocupado o el vehículo ya tiene una estadía abierta';
   END;
@@ -391,6 +402,8 @@ BEGIN
             'status', 'open',
             'opened_by', p_actor_id,
             'entry_notes', p_entry_notes,
+            'key_left', coalesce(p_key_left, false),
+            'damage_notes', nullif(btrim(p_damage_notes), ''),
             'shift_id', v_shift),
           p_device_id);
 

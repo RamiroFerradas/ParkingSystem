@@ -72,7 +72,7 @@ today's billing per location — without becoming an operator.
 
 - **Affected specs:** identity & access, operation (entry/exit/move), tariffs,
   cash shifts, boxes/floor structure, reports, administrative console.
-- **Affected code:** `db/migrations` (new `012_branches`), 26 route handlers,
+- **Affected code:** `db/migrations` (new `014_branches`), 26 route handlers,
   18 pages, 4 transactional RPCs, `src/lib/auth/*`, `src/lib/queries/*`,
   `box_status` view, nav config.
 - **Data:** every operational table gains a non-null branch. Existing rows are

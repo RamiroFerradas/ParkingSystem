@@ -37,7 +37,7 @@ check exists: write the failing test, observe RED, implement, observe GREEN.
 ### [ ] T1 — Migration 012: branches, Principal, partition, uniqueness
 
 - **Depends on:** T0
-- **Deliverable:** `db/migrations/012_branches.sql` covering `branches`,
+- **Deliverable:** `db/migrations/014_branches.sql` covering `branches`,
   `user_branches`, `profiles.is_master`, `user_permissions.branch_id`, every
   `branch_id` column, backfill from `parking_settings`, branch-scoped unique
   constraints, `ticket_sequences` swap, `box_status` recreation.

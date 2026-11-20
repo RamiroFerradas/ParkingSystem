@@ -58,7 +58,7 @@ the session's branch. Denormalizing would create two sources of truth.
 `vehicles` and `uq_open_session_per_vehicle` stay global on purpose: a vehicle
 cannot be open in two branches.
 
-### 1.3 Migration order (012_branches.sql)
+### 1.3 Migration order (014_branches.sql)
 
 Additive first, backfill second, tighten last. Every step is idempotent
 (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded `UPDATE`).
@@ -161,7 +161,7 @@ projection later — out of scope now.
   sequence, fee calculation, reports) on a single branch.
 - Layer 2 — scoping: seed two branches; assert every route and RPC rejects or
   hides foreign rows.
-- Layer 3 — migration: run `012_branches.sql` twice; assert idempotency and row
+- Layer 3 — migration: run `014_branches.sql` twice; assert idempotency and row
   counts per branch.
 - The existing `scripts/test-*.mjs` smoke scripts stay as a manual live check and
   are not promoted to `npm test`.
