@@ -7,8 +7,8 @@ export default function LoginPage({
   searchParams: Promise<{ expired?: string }>;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-8">
+    <main className="flex min-h-dvh items-center justify-center p-4 sm:p-8">
+      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8">
         <div className="text-center">
           {/* La marca como patente: banda azul, chapa blanca, tinta negra */}
           <div className="mx-auto w-fit overflow-hidden rounded-md bg-plate shadow-[0_1px_0_rgba(0,0,0,0.55)]">

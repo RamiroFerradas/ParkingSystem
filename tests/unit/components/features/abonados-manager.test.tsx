@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { AbonadosManager } from "@/app/(app)/tarifas/abonados/abonados-manager";
-import { formatARS } from "@/lib/format";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -152,7 +151,8 @@ describe("AbonadosManager", () => {
     expect(within(activeRow).getByText("Auto")).toBeInTheDocument();
     expect(within(activeRow).getByText("cochera 4")).toBeInTheDocument();
     expect(within(activeRow).getByText("01/02/2030 → 01/03/2030")).toBeInTheDocument();
-    expect(within(activeRow).getByText(formatARS("1500000"))).toBeInTheDocument();
+    // Intl separa el símbolo con un espacio duro: se compara sólo el número.
+    expect(within(activeRow).getByText(/15\.000,00/)).toBeInTheDocument();
     expect(within(activeRow).getByText("Vigente")).toBeInTheDocument();
     expect(within(activeRow).getByRole("button", { name: "Cancelar" })).toBeEnabled();
 
@@ -178,7 +178,9 @@ describe("AbonadosManager", () => {
     const planSelect = screen.getByLabelText("Plan mensual");
     const options = within(planSelect).getAllByRole("option");
     expect(options).toHaveLength(1);
-    expect(options[0]).toHaveTextContent(`Auto · Abono mensual · ${formatARS("1500000")}`);
+    expect(options[0]).toHaveValue("t1");
+    expect(options[0]).toHaveTextContent(/Auto · Abono mensual ·/);
+    expect(options[0]).toHaveTextContent(/15\.000,00/);
     expect(within(planSelect).queryByText("Hora")).toBeNull();
   });
 
@@ -291,10 +293,18 @@ describe("AbonadosManager", () => {
     });
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    await screen.findByText("CC456DD");
+    fireEvent.click(
+      within(screen.getByText("AA123BB").closest("tr") as HTMLElement).getByRole("button", {
+        name: "Cancelar",
+      }),
+    );
 
     expect(confirmSpy).toHaveBeenCalledWith("¿Cancelar el abono de AA123BB?");
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "PATCH"),
+      ).toHaveLength(1),
+    );
     const patch = fetchMock.mock.calls.find(
       ([, init]) => (init as RequestInit).method === "PATCH",
     ) as [string, RequestInit];
@@ -307,7 +317,11 @@ describe("AbonadosManager", () => {
     mockLoad();
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(
+      within(screen.getByText("AA123BB").closest("tr") as HTMLElement).getByRole("button", {
+        name: "Cancelar",
+      }),
+    );
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls.filter(([, init]) => (init as RequestInit).method === "PATCH")).toHaveLength(0);

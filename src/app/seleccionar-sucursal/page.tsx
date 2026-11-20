@@ -16,7 +16,7 @@ async function PickerGate() {
   if (!context) redirect("/login?expired=1");
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6">
       <header className="mb-6">
         <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-neutral-500">
           Mauricio&apos;s Parking
@@ -36,7 +36,7 @@ async function PickerGate() {
 
 function PickerSkeleton() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6">
       <div className="h-32 animate-pulse rounded-xl bg-neutral-900" />
     </main>
   );
