@@ -12,7 +12,7 @@ export interface BranchMembership {
 
 export interface BranchContext {
   user: SessionUser;
-  /** Non-null for every operational request. Null only for a master at /master. */
+  /** Non-null for every operational request. Null only for a master outside a branch. */
   branchId: string | null;
   branchName: string | null;
   role: UserRole | null;

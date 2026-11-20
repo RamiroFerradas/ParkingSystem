@@ -5,6 +5,8 @@ export interface NavItem {
   note?: string;
   /** Permiso requerido para ver el ítem. Sin permiso, alcanza con la sesión. */
   permission?: string;
+  /** Solo visible para el usuario master, sin importar el rol. */
+  masterOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -112,6 +114,12 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Administración",
     items: [
       {
+        label: "Sucursales",
+        href: "/sucursales",
+        enabled: true,
+        masterOnly: true,
+      },
+      {
         label: "Usuarios",
         href: "/administracion/usuarios",
         enabled: true,
@@ -147,16 +155,21 @@ export const NAV_GROUPS: NavGroup[] = [
 
 /**
  * Deja solo los ítems permitidos y descarta los grupos que quedan vacíos.
- * `allowed` evalúa un permiso para el rol de la sesión actual.
+ * `allowed` evalúa un permiso para la sucursal activa. Los ítems `masterOnly`
+ * se muestran únicamente al usuario master.
  */
 export function filterNavGroups(
   groups: NavGroup[],
   allowed: (permission: string) => boolean,
+  options: { isMaster?: boolean } = {},
 ): NavGroup[] {
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.permission || allowed(item.permission)),
+      items: group.items.filter((item) => {
+        if (item.masterOnly && !options.isMaster) return false;
+        return !item.permission || allowed(item.permission);
+      }),
     }))
     .filter((group) => group.items.length > 0);
 }

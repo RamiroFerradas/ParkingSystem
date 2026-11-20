@@ -78,7 +78,7 @@ export function BranchPill({
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="relative z-50 flex items-center gap-2 rounded-full border border-neutral-700 bg-neutral-800 py-1 pl-2.5 pr-3 text-sm font-medium text-neutral-100 hover:border-neutral-500"
+        className="relative z-50 flex w-full items-center justify-between gap-2 rounded-full border border-neutral-700 bg-neutral-800 py-1 pl-2.5 pr-3 text-sm font-medium text-neutral-100 hover:border-neutral-500"
       >
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${
@@ -105,7 +105,7 @@ export function BranchPill({
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
+          className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
           {canSwitch ? (
             <>
@@ -150,7 +150,7 @@ export function BranchPill({
 
           {canManage ? (
             <Link
-              href="/master/sucursales"
+              href="/sucursales"
               onClick={() => setOpen(false)}
               className="block border-t border-neutral-800 px-3 py-2 text-sm text-emerald-400 hover:bg-neutral-800"
             >
