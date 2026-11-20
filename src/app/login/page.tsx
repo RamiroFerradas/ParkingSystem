@@ -10,7 +10,14 @@ export default function LoginPage({
     <main className="flex min-h-screen items-center justify-center p-8">
       <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-8">
         <div className="text-center">
-          <h1 className="text-lg font-semibold tracking-tight">
+          {/* La marca como patente: banda azul, chapa blanca, tinta negra */}
+          <div className="mx-auto w-fit overflow-hidden rounded-md bg-plate shadow-[0_1px_0_rgba(0,0,0,0.55)]">
+            <div className="h-2 bg-plate-blue" />
+            <p className="px-3 py-1.5 text-[12px] font-extrabold uppercase leading-none tracking-[0.18em] text-plate-ink">
+              Mauricio&apos;s Parking
+            </p>
+          </div>
+          <h1 className="mt-4 text-lg font-semibold tracking-tight">
             Sistema de Gestión de Estacionamiento
           </h1>
           <p className="mt-1 text-xs text-neutral-500">

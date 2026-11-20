@@ -2,17 +2,31 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { useToast } from "@/components/shell/toast";
 
 interface Props {
   /** true = hay turno abierto (mostrar cerrar); false = abrir turno */
   open: boolean;
+  /** Admin/supervisor cierran cualquiera; el empleado, solo el que abrió. */
+  canClose?: boolean;
+  openedByName?: string | null;
 }
 
-export function ShiftActions({ open }: Props) {
+export function ShiftActions({ open, canClose = true, openedByName }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  if (open && !canClose) {
+    return (
+      <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-400">
+        Solo {openedByName ?? "quien abrió el turno"} puede cerrar este turno. Pedile
+        que lo cierre.
+      </p>
+    );
+  }
 
   async function submit(action: "open" | "close", event: FormEvent) {
     event.preventDefault();
@@ -30,6 +44,7 @@ export function ShiftActions({ open }: Props) {
         return;
       }
       setNotes("");
+      toast(action === "open" ? "Turno abierto" : "Turno cerrado");
       router.refresh();
     } catch {
       setError("Servidor no disponible");

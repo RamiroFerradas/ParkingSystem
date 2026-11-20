@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getBranchContext } from "@/lib/auth/context";
+import { loadOpenShiftSummary } from "@/lib/queries/shift-summary";
+import { AppHeader } from "@/components/shell/app-header";
 import { Sidebar } from "@/components/shell/sidebar";
+import { ToastProvider } from "@/components/shell/toast";
 
 /**
  * Con Cache Components activo, la lectura de sesión (cookies) va dentro de
@@ -29,21 +32,38 @@ async function ShellGate({ children }: { children: React.ReactNode }) {
     redirect("/seleccionar-sucursal");
   }
 
+  // El turno vive en el shell: abrir/cerrar queda a un click desde cualquier
+  // pantalla, y el estado se actualiza con router.refresh().
+  const shift = context.can("shift.manage")
+    ? await loadOpenShiftSummary(context.branchId, {
+        userId: context.user.userId,
+        role: context.role,
+      })
+    : null;
+
   return (
-    <div className="flex h-screen">
-      <Sidebar context={context} />
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
-    </div>
+    <ToastProvider>
+      <div className="flex h-screen flex-col">
+        <AppHeader context={context} shift={shift} />
+        <div className="flex min-h-0 flex-1">
+          <Sidebar context={context} />
+          <main className="min-w-0 flex-1 overflow-y-auto p-6">{children}</main>
+        </div>
+      </div>
+    </ToastProvider>
   );
 }
 
 function ShellSkeleton() {
   return (
-    <div className="flex h-screen">
-      <div className="h-screen w-60 shrink-0 border-r border-neutral-800 bg-neutral-900" />
-      <main className="flex-1 p-6">
-        <div className="h-32 animate-pulse rounded-xl bg-neutral-900" />
-      </main>
+    <div className="flex h-screen flex-col">
+      <div className="h-16 shrink-0 border-b border-neutral-800 bg-neutral-900" />
+      <div className="flex min-h-0 flex-1">
+        <div className="w-60 shrink-0 border-r border-neutral-800 bg-neutral-900" />
+        <main className="min-w-0 flex-1 p-6">
+          <div className="h-32 animate-pulse rounded-xl bg-neutral-900" />
+        </main>
+      </div>
     </div>
   );
 }

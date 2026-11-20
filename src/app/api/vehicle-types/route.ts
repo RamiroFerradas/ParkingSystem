@@ -46,13 +46,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
   }
 
-  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+  // El código es interno (seeds y tests); la UI ya no lo pide. Si no viene,
+  // se deriva del nombre para mantener la unicidad del catálogo.
+  const requestedCode = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const sortOrder = typeof body.sortOrder === "number" ? Math.floor(body.sortOrder) : 0;
 
+  const code =
+    requestedCode ||
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toUpperCase()
+      .slice(0, 20);
+
   if (!code || code.length > 20 || !name || name.length > 40) {
     return NextResponse.json(
-      { error: "Código (hasta 20) y nombre (hasta 40) requeridos" },
+      { error: "Nombre requerido (hasta 40 caracteres)" },
       { status: 400 },
     );
   }

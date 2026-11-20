@@ -47,6 +47,9 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
+      - name: Unit tests (vitest)
+        run: pnpm test:unit
+
       - name: Aplicar migraciones 001..008
         run: |
           node -e '

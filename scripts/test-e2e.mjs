@@ -151,11 +151,36 @@ try {
     JSON.stringify(noShift.body),
   );
 
+  // El shell muestra el turno en el header: sin turno ofrece abrirlo.
+  const homeNoShift = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const homeNoShiftHtml = await homeNoShift.text();
+  ok(
+    "header: sin turno ofrece abrirlo",
+    homeNoShift.status === 200 &&
+      homeNoShiftHtml.includes("Sin turno abierto") &&
+      homeNoShiftHtml.includes("Abrir turno") &&
+      !homeNoShiftHtml.includes("Turno abierto"),
+    `status=${homeNoShift.status}`,
+  );
+
   // abrir turno
   const shiftOpen = await api("/api/shifts/open", { method: "POST", body: JSON.stringify({ notes: "e2e" }) });
   ok("turno abierto", shiftOpen.status === 200 && !!shiftOpen.body.shiftId, JSON.stringify(shiftOpen.body));
   const dup = await api("/api/shifts/open", { method: "POST", body: JSON.stringify({}) });
   ok("doble turno rechazado", dup.status === 400, JSON.stringify(dup.body));
+
+  // Con el turno abierto el header muestra el transcurrido.
+  const homeShift = await fetch(BASE + "/", { headers: { cookie: cookieHeader() } });
+  const homeShiftHtml = await homeShift.text();
+  ok(
+    "header: turno abierto con transcurrido",
+    homeShift.status === 200 &&
+      homeShiftHtml.includes("Turno abierto") &&
+      (homeShiftHtml.includes("Hace ") || homeShiftHtml.includes("Recién abierto")) &&
+      homeShiftHtml.includes("Cerrar turno") &&
+      !homeShiftHtml.includes("Sin turno abierto"),
+    `status=${homeShift.status}`,
+  );
 
   // ids de referencia
   const refs = await dbRows(

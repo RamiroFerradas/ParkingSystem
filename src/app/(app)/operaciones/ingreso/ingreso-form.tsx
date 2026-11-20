@@ -37,7 +37,14 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
   const [plate, setPlate] = useState("");
   const [shiftMissing, setShiftMissing] = useState(!shiftOpen);
   const [lookup, setLookup] = useState<
-    { state: "idle" } | { state: "found"; vehicleTypeName: string; vehicleTypeId: string } | { state: "new" }
+    | { state: "idle" }
+    | {
+        state: "found";
+        vehicleTypeName: string;
+        vehicleTypeId: string;
+        subscription?: { endsOn: string } | null;
+      }
+    | { state: "new" }
   >({ state: "idle" });
   const [vehicleTypeId, setVehicleTypeId] = useState("");
   const [boxId, setBoxId] = useState("");
@@ -73,9 +80,15 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
         found: boolean;
         vehicleTypeId?: string;
         vehicleTypeName?: string;
+        subscription?: { active: boolean; endsOn: string } | null;
       };
       if (data.found && data.vehicleTypeId && data.vehicleTypeName) {
-        setLookup({ state: "found", vehicleTypeName: data.vehicleTypeName, vehicleTypeId: data.vehicleTypeId });
+        setLookup({
+          state: "found",
+          vehicleTypeName: data.vehicleTypeName,
+          vehicleTypeId: data.vehicleTypeId,
+          subscription: data.subscription ?? null,
+        });
         setVehicleTypeId(data.vehicleTypeId);
       } else {
         setLookup({ state: "new" });
@@ -223,16 +236,22 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
     setDamage("");
   }
 
+  const selectedBox = availableBoxes.find((b) => b.id === boxId);
+  const selectedTypeName =
+    lookup.state === "found"
+      ? lookup.vehicleTypeName
+      : vehicleTypes.find((t) => t.id === vehicleTypeId)?.name;
+
   if (status.step === "done") {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
-        <p className="text-sm text-emerald-400">
-          {status.moved ? "Vehículo movido de box" : "Ingreso registrado"}
+        <p className="mt-1.5 text-xs uppercase tracking-wide text-emerald-400">
+          {status.moved ? "Vehículo movido de box" : "Ingreso registrado"} · Ticket
         </p>
-        <p className="mt-1 text-3xl font-semibold tabular-nums">
-          Ticket {status.ticketNumber}
+        <p className="mt-1 font-mono text-4xl font-semibold tabular-nums">
+          {status.ticketNumber}
         </p>
-        <p className="mt-1 text-xs text-neutral-400">
+        <p className="mt-1 font-mono text-xs text-neutral-400">
           Box {status.boxNumber} · {status.plate}
         </p>
         {status.moved ? (
@@ -286,53 +305,74 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
           </p>
         </div>
       )}
-      <div>
-        <label htmlFor="plate" className="block text-xs font-medium text-neutral-400">
-          Patente
-        </label>
-        <input
-          id="plate"
-          required
-          value={plate}
-          maxLength={10}
-          onChange={(e) => {
-            setPlate(normalizePlate(e.target.value));
-            setPendingMove(null);
-          }}
-          onBlur={(e) => lookupPlate(e.target.value)}
-          placeholder="ABC123"
-          className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-lg font-semibold tracking-widest uppercase text-neutral-100 outline-none focus:border-neutral-500"
-        />
-        {lookup.state === "found" ? (
-          <p className="mt-1 text-xs text-emerald-400">
-            Vehículo registrado — tipo: {lookup.vehicleTypeName}
-          </p>
-        ) : lookup.state === "new" ? (
-          <p className="mt-1 text-xs text-amber-400">Vehículo nuevo — elegí el tipo</p>
-        ) : null}
-      </div>
-
-      {lookup.state !== "found" ? (
+      <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
         <div>
-          <label htmlFor="vehicleType" className="block text-xs font-medium text-neutral-400">
-            Tipo de vehículo
+          <label htmlFor="plate" className="block text-xs font-medium text-neutral-400">
+            Patente
           </label>
-          <select
-            id="vehicleType"
-            required
-            value={vehicleTypeId}
-            onChange={(e) => setVehicleTypeId(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-          >
-            <option value="">Seleccionar...</option>
-            {vehicleTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          {/* La patente se escribe sobre una chapa: mismo formato que el operador lee */}
+          <div className="mt-1.5 w-full max-w-64 overflow-hidden rounded-md bg-plate shadow-[0_1px_0_rgba(0,0,0,0.55)]">
+            <div className="h-1.5 bg-plate-blue" />
+            <input
+              id="plate"
+              required
+              value={plate}
+              maxLength={10}
+              autoComplete="off"
+              onChange={(e) => {
+                setPlate(normalizePlate(e.target.value));
+                setPendingMove(null);
+              }}
+              onBlur={(e) => lookupPlate(e.target.value)}
+              placeholder="ABC123"
+              className="w-full bg-transparent px-3 py-2 text-center font-mono text-2xl font-semibold uppercase tracking-[0.2em] text-plate-ink outline-none placeholder:text-plate-ink/30"
+            />
+          </div>
+          {lookup.state === "found" ? (
+            lookup.subscription ? (
+              <p className="mt-1 text-xs text-emerald-400">
+                Abonado hasta {lookup.subscription.endsOn.split("-").reverse().join("/")}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-emerald-400">Vehículo registrado</p>
+            )
+          ) : lookup.state === "new" ? (
+            <p className="mt-1 text-xs text-amber-400">Vehículo nuevo — elegí el tipo</p>
+          ) : null}
         </div>
-      ) : null}
+
+        {lookup.state === "found" ? (
+          <div>
+            <span className="block text-xs font-medium text-neutral-400">
+              Tipo de vehículo
+            </span>
+            <div className="mt-1 flex min-h-[42px] items-center rounded-md border border-neutral-800 bg-neutral-900 px-3 text-sm text-neutral-200">
+              {lookup.vehicleTypeName}
+              <span className="ml-2 text-[11px] text-neutral-500">registrado</span>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="vehicleType" className="block text-xs font-medium text-neutral-400">
+              Tipo de vehículo
+            </label>
+            <select
+              id="vehicleType"
+              required
+              value={vehicleTypeId}
+              onChange={(e) => setVehicleTypeId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+            >
+              <option value="">Seleccionar...</option>
+              {vehicleTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       <div>
         <div className="flex items-baseline justify-between">
@@ -352,13 +392,16 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
           placeholder="Escribí el número de box..."
           className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
         />
-        <div data-box-picker className="mt-2 max-h-60 space-y-2 overflow-y-auto pr-1">
+        <div data-box-picker className="mt-3 grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {[...boxesByFloor.entries()].map(([floorName, boxes]) => (
-            <div key={floorName}>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">
+            <div
+              key={floorName}
+              className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3"
+            >
+              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
                 {floorName}
               </p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {boxes.map((b) => {
                   const selected = b.id === boxId;
                   return (
@@ -372,7 +415,7 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
                         setPendingMove(null);
                       }}
                       className={
-                        "min-w-10 rounded-md border px-2 py-1.5 text-sm font-medium tabular-nums transition-colors " +
+                        "min-w-10 rounded-md border px-2 py-1.5 font-mono text-sm font-medium tabular-nums transition-colors " +
                         (selected
                           ? "border-neutral-100 bg-neutral-100 text-neutral-900"
                           : "border-neutral-700 bg-neutral-950 text-neutral-300 hover:border-neutral-500 hover:text-neutral-100")
@@ -391,32 +434,34 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
         </div>
       </div>
 
-      <div>
-        <label htmlFor="notes" className="block text-xs font-medium text-neutral-400">
-          Observaciones (opcional)
-        </label>
-        <input
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-        />
-      </div>
+      <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+        <div>
+          <label htmlFor="notes" className="block text-xs font-medium text-neutral-400">
+            Observaciones (opcional)
+          </label>
+          <input
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+          />
+        </div>
 
-      <label className="flex items-start gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5">
-        <input
-          type="checkbox"
-          checked={keyLeft}
-          onChange={(e) => setKeyLeft(e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-neutral-100"
-        />
-        <span>
-          <span className="block text-sm text-neutral-200">Deja la llave puesta</span>
-          <span className="block text-xs text-neutral-500">
-            La llave queda en el vehículo; se verifica al egresar.
+        <label className="flex items-start gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={keyLeft}
+            onChange={(e) => setKeyLeft(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-neutral-100"
+          />
+          <span>
+            <span className="block text-sm text-neutral-200">Deja la llave puesta</span>
+            <span className="block text-xs text-neutral-500">
+              La llave queda en el vehículo; se verifica al egresar.
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+      </div>
 
       <div>
         <label htmlFor="damage" className="block text-xs font-medium text-neutral-400">
@@ -483,13 +528,29 @@ export function IngresoForm({ vehicleTypes, availableBoxes, shiftOpen }: Props) 
           </div>
         </div>
       ) : (
-        <button
-          type="submit"
-          disabled={status.step === "submitting" || availableBoxes.length === 0 || shiftMissing}
-          className="w-full rounded-md bg-neutral-100 px-3 py-2.5 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
-        >
-          {status.step === "submitting" ? "Registrando..." : "Confirmar ingreso"}
-        </button>
+        <div className="flex flex-col gap-3 border-t border-neutral-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-neutral-400">
+            {selectedBox ? (
+              <>
+                Box{" "}
+                <span className="font-mono font-medium text-neutral-100">
+                  {selectedBox.number}
+                </span>
+                {selectedTypeName ? ` · ${selectedTypeName}` : ""}
+                {plate ? ` · ${plate}` : ""}
+              </>
+            ) : (
+              "Elegí un box para continuar"
+            )}
+          </p>
+          <button
+            type="submit"
+            disabled={status.step === "submitting" || availableBoxes.length === 0 || shiftMissing}
+            className="w-full rounded-md bg-neutral-100 px-6 py-2.5 text-sm font-semibold text-neutral-900 hover:bg-white disabled:opacity-60 sm:w-auto"
+          >
+            {status.step === "submitting" ? "Registrando..." : "Confirmar ingreso"}
+          </button>
+        </div>
       )}
 
       {availableBoxes.length === 0 ? (

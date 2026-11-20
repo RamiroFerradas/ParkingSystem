@@ -6,10 +6,11 @@ import { printSessionTicket } from "@/lib/print/client";
 import { formatARS, formatElapsed } from "@/lib/format";
 
 export interface FeeBreakdown {
-  block: { name: string; amount_cents: number };
+  block: { name: string; amount_cents: number } | null;
   extra_hours: number;
   hourly_amount_cents: number;
   total_cents: number;
+  abono?: boolean;
 }
 
 export interface EgresoData {
@@ -33,7 +34,9 @@ type Result =
   | { state: "error"; message: string };
 
 export function EgresoForm({ data }: { data: EgresoData }) {
-  const [methodId, setMethodId] = useState("");
+  const [methodId, setMethodId] = useState(
+    data.quote.abono ? data.methods[0]?.id ?? "" : "",
+  );
   const [notes, setNotes] = useState("");
   const [result, setResult] = useState<Result>({ state: "form" });
   const [printState, setPrintState] = useState<
@@ -88,10 +91,10 @@ export function EgresoForm({ data }: { data: EgresoData }) {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
         <p className="text-sm text-emerald-400">Cobro registrado</p>
-        <p className="mt-1 text-3xl font-semibold tabular-nums">
+        <p className="mt-1 font-mono text-3xl font-semibold tabular-nums">
           {formatARS(result.finalCents)}
         </p>
-        <p className="mt-1 text-xs text-neutral-400">
+        <p className="mt-1 font-mono text-xs text-neutral-400">
           Ticket #{data.ticketNumber} · {formatElapsed(result.durationMinutes)} · Box liberado
         </p>
         <div className="mt-4 flex justify-center gap-2">
@@ -128,26 +131,36 @@ export function EgresoForm({ data }: { data: EgresoData }) {
     <>
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
         <p className="text-xs font-medium text-neutral-500">Desglose (BR-010)</p>
-        <ul className="mt-2 space-y-1.5 text-sm">
-          <li className="flex justify-between">
-            <span className="text-neutral-300">{q.block.name}</span>
-            <span className="tabular-nums">{formatARS(q.block.amount_cents)}</span>
-          </li>
-          {q.extra_hours > 0 ? (
+        {q.abono ? (
+          <div className="mt-2 space-y-1.5 text-sm">
+            <p className="text-emerald-400">Estadía abonada: no se cobra por hora.</p>
+            <div className="flex justify-between border-t border-neutral-800 pt-1.5 font-medium">
+              <span>Tiempo: {formatElapsed(data.elapsedMinutes)}</span>
+              <span className="font-mono tabular-nums text-emerald-400">Abonado</span>
+            </div>
+          </div>
+        ) : (
+          <ul className="mt-2 space-y-1.5 text-sm">
             <li className="flex justify-between">
-              <span className="text-neutral-300">
-                {q.extra_hours} × hora extra ({formatARS(q.hourly_amount_cents)} c/u)
-              </span>
-              <span className="tabular-nums">
-                {formatARS(q.extra_hours * q.hourly_amount_cents)}
-              </span>
+              <span className="text-neutral-300">{q.block?.name ?? "Tarifa"}</span>
+              <span className="tabular-nums">{formatARS(q.block?.amount_cents ?? 0)}</span>
             </li>
-          ) : null}
-          <li className="flex justify-between border-t border-neutral-800 pt-1.5 font-medium">
-            <span>Tiempo: {formatElapsed(data.elapsedMinutes)}</span>
-            <span className="tabular-nums text-emerald-400">{formatARS(q.total_cents)}</span>
-          </li>
-        </ul>
+            {q.extra_hours > 0 ? (
+              <li className="flex justify-between">
+                <span className="text-neutral-300">
+                  {q.extra_hours} × hora extra ({formatARS(q.hourly_amount_cents)} c/u)
+                </span>
+                <span className="tabular-nums">
+                  {formatARS(q.extra_hours * q.hourly_amount_cents)}
+                </span>
+              </li>
+            ) : null}
+            <li className="flex justify-between border-t border-neutral-800 pt-1.5 font-medium">
+              <span>Tiempo: {formatElapsed(data.elapsedMinutes)}</span>
+              <span className="font-mono tabular-nums text-emerald-400">{formatARS(q.total_cents)}</span>
+            </li>
+          </ul>
+        )}
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
@@ -201,7 +214,7 @@ export function EgresoForm({ data }: { data: EgresoData }) {
           disabled={result.state === "submitting" || !methodId}
           className="w-full rounded-md bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:opacity-60"
         >
-          {result.state === "submitting" ? "Cobrando..." : `Confirmar cobro · ${formatARS(q.total_cents)}`}
+          {result.state === "submitting" ? "Cobrando..." : q.abono ? "Confirmar egreso" : `Confirmar cobro · ${formatARS(q.total_cents)}`}
         </button>
       </form>
     </>

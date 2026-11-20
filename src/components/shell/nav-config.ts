@@ -44,6 +44,12 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { label: "Estadías activas", href: "/operaciones/estadias", enabled: true },
       { label: "Historial", href: "/operaciones/historial", enabled: true },
+      {
+        label: "Turnos de caja",
+        href: "/administracion/turnos",
+        enabled: true,
+        permission: "shift.manage",
+      },
     ],
   },
   {
@@ -90,6 +96,12 @@ export const NAV_GROUPS: NavGroup[] = [
         enabled: true,
         permission: "tariff.manage",
       },
+      {
+        label: "Abonados mensuales",
+        href: "/tarifas/abonados",
+        enabled: true,
+        permission: "tariff.manage",
+      },
     ],
   },
   {
@@ -105,6 +117,12 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         label: "Reporte de turnos",
         href: "/reportes/turnos",
+        enabled: true,
+        permission: "reports.read",
+      },
+      {
+        label: "Impacto de abonos",
+        href: "/reportes/abonados",
         enabled: true,
         permission: "reports.read",
       },
@@ -130,12 +148,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/administracion/medios-de-pago",
         enabled: true,
         permission: "tariff.manage",
-      },
-      {
-        label: "Turnos de caja",
-        href: "/administracion/turnos",
-        enabled: true,
-        permission: "shift.manage",
       },
       {
         label: "Sincronización",

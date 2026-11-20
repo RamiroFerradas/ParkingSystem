@@ -10,6 +10,7 @@ interface ShiftView {
   id: string | null;
   opened_at: string | null;
   opened_by: string | null;
+  opened_by_id: string | null;
   totals: { method_name: string; total: string }[];
   openSessions: number;
   collected: string;
@@ -20,8 +21,9 @@ async function loadShift(): Promise<ShiftView> {
     id: string;
     opened_at: string;
     opened_by: string;
+    opened_by_id: string;
   }>(
-    `SELECT cs.id, cs.opened_at::text, p.full_name AS opened_by
+    `SELECT cs.id, cs.opened_at::text, p.full_name AS opened_by, cs.opened_by AS opened_by_id
        FROM cash_shifts cs
        JOIN profiles p ON p.id = cs.opened_by
       WHERE cs.status = 'open'
@@ -33,6 +35,7 @@ async function loadShift(): Promise<ShiftView> {
       id: null,
       opened_at: null,
       opened_by: null,
+      opened_by_id: null,
       totals: [],
       openSessions: 0,
       collected: "0",
@@ -64,6 +67,7 @@ async function loadShift(): Promise<ShiftView> {
     id: current.id,
     opened_at: current.opened_at,
     opened_by: current.opened_by,
+    opened_by_id: current.opened_by_id,
     totals,
     openSessions: Number(summary[0]?.open_sessions ?? 0),
     collected: summary[0]?.collected ?? "0",
@@ -87,6 +91,11 @@ export default async function TurnosPage() {
   }
 
   const shift = await loadShift();
+  const canCloseShift =
+    !shift.opened_by_id ||
+    user.role === "admin" ||
+    user.role === "supervisor" ||
+    shift.opened_by_id === user.userId;
   const canSeeReports = await hasPermission(user, "reports.read");
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -94,8 +103,9 @@ export default async function TurnosPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Turnos de caja</h1>
           <p className="text-sm text-neutral-500">
-            Uno abre, otro puede cerrar. Cada ingreso y cobro se atribuye al turno
-            abierto y el turno no se cierra con autos adentro.
+            El turno agrupa los ingresos y cobros de la jornada. El empleado cierra el
+            turno que abrió; admin y supervisor, cualquiera. No se cierra con autos
+            adentro.
           </p>
         </div>
         {canSeeReports && (
@@ -144,7 +154,11 @@ export default async function TurnosPage() {
             </ul>
           </div>
 
-          <ShiftActions open={true} />
+          <ShiftActions
+            open={true}
+            canClose={canCloseShift}
+            openedByName={shift.opened_by}
+          />
         </>
       ) : (
         <>

@@ -29,8 +29,11 @@ async function loadIngresoData(): Promise<IngresoData> {
   return { vehicleTypes, availableBoxes, shiftOpen: openShift.length > 0 };
 }
 
-export default async function IngresoPage() {
-  const user = await getSessionUser();
+// La página consulta la DB en el servidor; en Next 16 dev la navegación se
+// valida contra datos sin cachear. Se opta por ruta bloqueante (sin PPR).
+export const instant = false;
+
+export default async function IngresoPage() {  const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "session.open"))) {
     return (
@@ -46,7 +49,7 @@ export default async function IngresoPage() {
   }
   const data = await loadIngresoData();
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">Registrar ingreso</h1>
         <p className="text-sm text-neutral-500">
@@ -54,12 +57,16 @@ export default async function IngresoPage() {
           elegí el box y confirmá.
         </p>
       </header>
-      <IngresoForm
-        vehicleTypes={data.vehicleTypes}
-        availableBoxes={data.availableBoxes}
-        shiftOpen={data.shiftOpen}
-      />
-      <PrintQueuePanel />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <IngresoForm
+          vehicleTypes={data.vehicleTypes}
+          availableBoxes={data.availableBoxes}
+          shiftOpen={data.shiftOpen}
+        />
+        <aside className="lg:sticky lg:top-6">
+          <PrintQueuePanel />
+        </aside>
+      </div>
     </div>
   );
 }

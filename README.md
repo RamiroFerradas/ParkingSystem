@@ -1,4 +1,4 @@
-# Parking System
+# Mauricio's Parking
 
 Sistema integral de gestión de estacionamiento (Córdoba, Argentina).
 

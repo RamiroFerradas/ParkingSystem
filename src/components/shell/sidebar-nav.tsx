@@ -18,7 +18,7 @@ export function SidebarNav({ groups }: { groups: NavGroup[] }) {
     <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Menú principal">
       {groups.map((group) => (
         <div key={group.label} className="mb-3">
-          <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-600">
+          <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
             {group.label}
           </p>
           <ul className="space-y-0.5">

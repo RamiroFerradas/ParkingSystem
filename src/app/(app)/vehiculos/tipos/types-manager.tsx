@@ -4,7 +4,6 @@ import { useState } from "react";
 
 interface TypeRow {
   id: string;
-  code: string;
   name: string;
   is_active: boolean;
   sort_order: number;
@@ -19,7 +18,6 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
   const [list, setList] = useState(types);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [code, setCode] = useState("");
   const [name, setName] = useState("");
 
   async function call(url: string, method: string, body: Record<string, unknown>) {
@@ -43,10 +41,9 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
   }
 
   async function createType() {
-    const r = await call("/api/vehicle-types", "POST", { code, name, sortOrder: list.length + 1 });
+    const r = await call("/api/vehicle-types", "POST", { name, sortOrder: list.length + 1 });
     if (!r?.type) return;
     setList((prev) => [...prev, r.type]);
-    setCode("");
     setName("");
   }
 
@@ -75,13 +72,6 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
         <h2 className="text-sm font-medium text-neutral-300">Nuevo tipo</h2>
         <div className="mt-3 flex gap-2">
           <input
-            className={inputCls + " w-28"}
-            placeholder="Código"
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            maxLength={20}
-          />
-          <input
             className={inputCls + " flex-1"}
             placeholder="Nombre (ej: Camioneta)"
             value={name}
@@ -90,7 +80,7 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
           />
           <button
             className={btnCls}
-            disabled={busy || !code.trim() || !name.trim()}
+            disabled={busy || !name.trim()}
             onClick={createType}
           >
             Crear
@@ -102,7 +92,6 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
         <table className="w-full text-sm">
           <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Código</th>
               <th className="px-4 py-2 font-medium">Nombre</th>
               <th className="px-4 py-2 text-right font-medium">Orden</th>
               <th className="px-4 py-2 text-right font-medium">Acciones</th>
@@ -111,7 +100,6 @@ export function TypesManager({ types }: { types: TypeRow[] }) {
           <tbody className="divide-y divide-neutral-800 bg-neutral-950">
             {list.map((t) => (
               <tr key={t.id} className={t.is_active ? "" : "opacity-50"}>
-                <td className="px-4 py-2.5 font-mono text-neutral-400">{t.code}</td>
                 <td className="px-4 py-2.5">
                   <input
                     className="w-full max-w-48 rounded border border-transparent bg-transparent px-1 py-0.5 text-neutral-200 hover:border-neutral-700 focus:border-neutral-500 focus:bg-neutral-950 focus:outline-none"

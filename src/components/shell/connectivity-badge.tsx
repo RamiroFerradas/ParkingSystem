@@ -1,48 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-type Connectivity =
-  | { state: "online" }
-  | { state: "offline" };
-
-const STYLES: Record<Connectivity["state"], string> = {
-  online: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  offline: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-};
-
-const LABELS: Record<Connectivity["state"], string> = {
-  online: "En línea",
-  offline: "Sin conexión",
-};
+function subscribe(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
 
 /**
- * Indicador de conectividad (§G del pedido). En la Etapa D6 se extiende con
- * los estados de sincronización (sincronizando / pendiente / error).
+ * Aviso de conectividad (§G del pedido). Solo se muestra cuando está offline:
+ * un badge verde permanente entrena a la gente a ignorarlo.
  */
 export function ConnectivityBadge() {
-  const [conn, setConn] = useState<Connectivity | null>(null);
+  const online = useSyncExternalStore(
+    subscribe,
+    () => navigator.onLine,
+    () => true,
+  );
 
-  useEffect(() => {
-    const update = () =>
-      setConn(navigator.onLine ? { state: "online" } : { state: "offline" });
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
+  if (online) return null;
 
-  if (!conn) return <div className="h-6 w-20" aria-hidden="true" />;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${STYLES[conn.state]}`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400"
       role="status"
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {LABELS[conn.state]}
+      Sin conexión
     </span>
   );
 }

@@ -1,11 +1,11 @@
 {
-  "name": "Parking System",
-  "short_name": "Parking",
+  "name": "Mauricio's Parking",
+  "short_name": "Mauricio's",
   "description": "Sistema integral de gestión de estacionamiento",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#15130f",
+  "theme_color": "#15130f",
   "lang": "es",
   "icons": [
     {

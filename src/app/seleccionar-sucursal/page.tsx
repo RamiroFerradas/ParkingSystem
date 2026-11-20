@@ -18,8 +18,8 @@ async function PickerGate() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">
-          Parking System
+        <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-neutral-500">
+          Mauricio&apos;s Parking
         </p>
         <h1 className="mt-1 text-xl font-semibold tracking-tight text-neutral-100">
           Elegí una sucursal

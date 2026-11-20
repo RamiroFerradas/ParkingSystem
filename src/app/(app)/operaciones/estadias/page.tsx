@@ -19,6 +19,7 @@ interface OpenStay {
   quote_cents: string;
   key_left: boolean;
   damage_notes: string | null;
+  abonado: boolean;
 }
 
 /** `ownerId` restringe a lo abierto por ese usuario (permiso `session.read_own`). */
@@ -32,10 +33,13 @@ async function loadOpenStays(ownerId?: string): Promise<OpenStay[]> {
             s.entry_at,
             s.key_left,
             s.damage_notes,
+            (s.subscription_id IS NOT NULL) AS abonado,
             GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int) AS elapsed_minutes,
-            (calc_fee_breakdown(b.branch_id, s.vehicle_type_id,
-                GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int))
-             ->>'total_cents') AS quote_cents
+            CASE WHEN s.subscription_id IS NOT NULL THEN '0'
+                 ELSE (calc_fee_breakdown(b.branch_id, s.vehicle_type_id,
+                     GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int))
+                  ->>'total_cents')
+            END AS quote_cents
        FROM parking_sessions s
        JOIN vehicles v       ON v.id = s.vehicle_id
        JOIN vehicle_types vt ON vt.id = s.vehicle_type_id
@@ -104,6 +108,11 @@ async function OpenStaysTable() {
               <td className="px-4 py-2.5 tabular-nums text-neutral-400">#{s.ticket_number}</td>
               <td className="px-4 py-2.5">
                 <span className="font-semibold tracking-wide">{s.plate}</span>
+                {s.abonado ? (
+                  <span className="ml-2 rounded border border-emerald-500/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+                    Abonado
+                  </span>
+                ) : null}
                 {s.key_left ? (
                   <span className="ml-2 rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
                     Llave
@@ -123,7 +132,7 @@ async function OpenStaysTable() {
               <td className="px-4 py-2.5 tabular-nums text-neutral-400">{formatTime(s.entry_at)}</td>
               <td className="px-4 py-2.5 tabular-nums text-neutral-300">{formatElapsed(s.elapsed_minutes)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums font-medium text-emerald-400">
-                {formatARS(s.quote_cents)}
+                {s.abonado ? "Abonado" : formatARS(s.quote_cents)}
               </td>
               <td className="px-4 py-2.5 text-right">
                 <Link

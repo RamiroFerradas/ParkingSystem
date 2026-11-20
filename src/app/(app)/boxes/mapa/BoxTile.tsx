@@ -66,11 +66,11 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
       className={`flex flex-col justify-between rounded-lg border p-3 ${
         isActive ? STATUS_STYLE[status] : INACTIVE_STYLE
       } ${editable ? "cursor-pointer transition hover:border-neutral-400" : ""} ${
-        selected ? "ring-2 ring-sky-500/70" : ""
+        selected ? "ring-2 ring-amber-400" : ""
       }`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-lg font-bold tracking-tight">{number}</span>
+        <span className="font-mono text-lg font-semibold tracking-tight">{number}</span>
         <span className="text-[10px] uppercase tracking-wider opacity-80">
           {isActive ? (sector ?? "—") : "Inactivo"}
         </span>
@@ -79,7 +79,7 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
       <div className="mt-2 min-h-10 text-xs">
         {occupied ? (
           <>
-            <div className="font-semibold tracking-wide text-neutral-100">{plate}</div>
+            <div className="font-mono font-semibold tracking-[0.08em] text-neutral-100">{plate}</div>
             <div className="opacity-80">{vehicleTypeName ?? "—"}</div>
             <div className="tabular-nums opacity-80">{`Ticket #${ticketNumber ?? "—"}`}</div>
             <div className="tabular-nums opacity-70">

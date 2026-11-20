@@ -128,8 +128,7 @@ async function TodayCards() {
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS egresos,
        (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
           FROM payments p
-          JOIN parking_sessions s ON s.id = p.session_id
-         WHERE s.branch_id = $1
+         WHERE p.branch_id = $1
            AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_cents`,
     [context.branchId],
@@ -168,13 +167,13 @@ async function YesterdayCards() {
            AND (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = ((now() - interval '1 day') AT TIME ZONE 'America/Argentina/Cordoba')::date) AS ingresos_ayer,
        (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
-          FROM payments p JOIN parking_sessions s ON s.id = p.session_id
-         WHERE s.branch_id = $1
+          FROM payments p
+         WHERE p.branch_id = $1
            AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_hoy,
        (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
-          FROM payments p JOIN parking_sessions s ON s.id = p.session_id
-         WHERE s.branch_id = $1
+          FROM payments p
+         WHERE p.branch_id = $1
            AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
              = ((now() - interval '1 day') AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_ayer`,
     [context.branchId],
@@ -204,8 +203,7 @@ async function MethodsToday() {
             COALESCE(sum(p.amount_charged_cents), 0)::text AS collected
        FROM payments p
        JOIN payment_methods m ON m.id = p.method_id
-       JOIN parking_sessions s ON s.id = p.session_id
-      WHERE s.branch_id = $1
+      WHERE p.branch_id = $1
         AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
           = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
       GROUP BY m.name ORDER BY sum(p.amount_charged_cents) DESC`,

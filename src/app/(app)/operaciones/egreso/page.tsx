@@ -62,12 +62,20 @@ export default async function EgresoPage({
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">Registrar egreso</h1>
-        <p className="text-sm text-neutral-500">
-          Ticket #{data.ticketNumber} · Box {data.boxNumber} · ingresó{" "}
-          {formatTime(data.entryAt)}
-        </p>
+      <header className="flex items-center gap-3">
+        <div className="shrink-0 overflow-hidden rounded-md bg-plate shadow-[0_1px_0_rgba(0,0,0,0.55)]">
+          <div className="h-1.5 bg-plate-blue" />
+          <span className="block px-2.5 py-1 font-mono text-xl font-semibold tracking-[0.16em] text-plate-ink">
+            {data.plate}
+          </span>
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Registrar egreso</h1>
+          <p className="font-mono text-xs text-neutral-500">
+            Ticket #{data.ticketNumber} · Box {data.boxNumber} · ingresó{" "}
+            {formatTime(data.entryAt)}
+          </p>
+        </div>
       </header>
       {data.keyLeft || data.damageNotes ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
@@ -126,8 +134,8 @@ async function OpenStayPicker() {
             className="flex items-center justify-between px-4 py-3 hover:bg-neutral-900"
           >
             <div>
-              <p className="font-semibold tracking-wide">{s.plate}</p>
-              <p className="text-xs text-neutral-500">
+              <p className="font-mono font-semibold tracking-[0.08em]">{s.plate}</p>
+              <p className="font-mono text-xs text-neutral-500">
                 Ticket #{s.ticket_number} · Box {s.box_number} · {formatTime(s.entry_at)} ·{" "}
                 {formatElapsed(s.elapsed)}
               </p>

@@ -3,7 +3,7 @@
 import { buildEntryTicket, buildExitReceipt } from "./ticket";
 import { printTicket } from "./serial";
 
-export const PARKING_NAME = "SMARTDRIVE PARKING SA";
+export const PARKING_NAME = "MAURICIO'S PARKING";
 
 export interface SessionTicketPayload {
   ticket_number: string;
@@ -45,6 +45,10 @@ async function fetchPayload(sessionId: string): Promise<SessionTicketPayload> {
 function breakdownLines(snapshot: Record<string, unknown> | null, baseCents: number) {
   const lines: { label: string; amountCents: number }[] = [];
   if (snapshot && typeof snapshot === "object") {
+    if (snapshot.abono === true) {
+      lines.push({ label: "Abonado (sin cargo)", amountCents: 0 });
+      return lines;
+    }
     const block = snapshot.block as
       | { name?: string; amount_cents?: number }
       | undefined;
