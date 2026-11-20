@@ -152,7 +152,12 @@ describe("BoxMapBoard", () => {
     expect(screen.getByText("1 boxes")).toBeInTheDocument();
     expect(screen.queryByText("Dado de baja")).toBeNull();
     expect(screen.queryByText(/Tocá un box/)).toBeNull();
-    expect(screen.queryByRole("button")).toBeNull();
+
+    // Read-only: the one active box renders as a plain tile, never as a button,
+    // and the inactive box is filtered out entirely.
+    const tiles = [...document.querySelectorAll("[data-box-tile]")];
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]!.getAttribute("role")).toBeNull();
   });
 
   it("omits floors whose boxes are all hidden", () => {

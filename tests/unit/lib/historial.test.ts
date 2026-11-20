@@ -96,7 +96,7 @@ describe("loadHistorial", () => {
                s.status,
                s.duration_minutes,
                s.final_amount_cents::text AS final_amount_cents,
-               pc.full_name AS closed_by_name
+               pc.email AS closed_by_name
           FROM parking_sessions s
           JOIN vehicles v       ON v.id = s.vehicle_id
           JOIN vehicle_types vt ON vt.id = s.vehicle_type_id
@@ -226,7 +226,7 @@ describe("loadFilterOptions", () => {
     expect(sqls).toEqual([
       "SELECT id, name FROM vehicle_types WHERE is_active ORDER BY sort_order",
       "SELECT id, number FROM parking_boxes ORDER BY number",
-      "SELECT id, full_name FROM profiles WHERE is_active ORDER BY full_name",
+      "SELECT id, email AS full_name FROM profiles WHERE is_active ORDER BY email",
       "SELECT id, name FROM payment_methods WHERE is_active ORDER BY sort_order",
     ]);
   });

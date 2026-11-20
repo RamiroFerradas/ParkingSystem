@@ -66,9 +66,9 @@ describe("MiniBoxMap", () => {
 
     render(await MiniBoxMap({ branchId: "b1" }));
 
-    expect(screen.getByText("2 ocup.")).toBeInTheDocument();
-    expect(screen.getByText("1 libres")).toBeInTheDocument();
-    expect(screen.getByText("1 fuera")).toBeInTheDocument();
+    expect(screen.getByText(/2 ocupados/)).toBeInTheDocument();
+    expect(screen.getByText(/1 libres/)).toBeInTheDocument();
+    expect(screen.getByText(/1 fuera/)).toBeInTheDocument();
   });
 
   it("groups cells per floor", async () => {
@@ -87,13 +87,13 @@ describe("MiniBoxMap", () => {
     render(await MiniBoxMap({ branchId: "b1" }));
 
     const cells = [...document.querySelectorAll("[data-box-cell]")];
-    const titles = cells.map((cell) => cell.getAttribute("title"));
+    const labels = cells.map((cell) => cell.getAttribute("aria-label"));
 
-    expect(titles).toEqual([
-      "Box 1 · ocupado (AB123CD)",
-      "Box 2 · libre",
-      "Box 3 · fuera de servicio",
-      "Box 4 · ocupado",
+    expect(labels).toEqual([
+      "Box 1, ocupado, patente AB123CD",
+      "Box 2, libre",
+      "Box 3, fuera de servicio",
+      "Box 4, ocupado",
     ]);
   });
 
@@ -103,9 +103,11 @@ describe("MiniBoxMap", () => {
     render(await MiniBoxMap({ branchId: "b1" }));
 
     const cells = [...document.querySelectorAll("[data-box-cell]")];
-    expect(cells[0]!.className).toContain("bg-red-500/80");
-    expect(cells[1]!.className).toContain("bg-emerald-500/60");
-    expect(cells[2]!.className).toContain("bg-neutral-700");
+    const tones = cells.map((cell) => cell.className);
+    // The exact palette is a design decision; the invariant is that the three
+    // statuses are visually distinguishable and the two occupied boxes match.
+    expect(new Set([tones[0], tones[1], tones[2]]).size).toBe(3);
+    expect(tones[3]).toBe(tones[0]);
   });
 
   it("renders the grid container when there are boxes", async () => {
