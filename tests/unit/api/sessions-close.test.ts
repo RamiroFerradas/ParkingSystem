@@ -135,6 +135,30 @@ describe("POST /api/sessions/close", () => {
     await expect(res.json()).resolves.toEqual({ error: "Estadía no encontrada" });
   });
 
+  it("returns a stable 500 when the RPC yields NULL or no row", async () => {
+    // B5: `rows[0]!.r` used to throw a TypeError that rpcErrorResponse echoed as
+    // a 400. The guard returns a fixed Spanish message and a 500 instead.
+    mockQuery
+      .mockResolvedValueOnce([{ id: "session-1" }])
+      .mockResolvedValueOnce([{ r: null }]);
+    const nullRes = await post({ sessionId: "session-1", methodId: "method-1" });
+
+    expect(nullRes.status).toBe(500);
+    await expect(nullRes.json()).resolves.toEqual({
+      error: "No se pudo cerrar la estadía. Reintentá en unos segundos.",
+    });
+
+    mockQuery
+      .mockResolvedValueOnce([{ id: "session-1" }])
+      .mockResolvedValueOnce([]);
+    const emptyRes = await post({ sessionId: "session-1", methodId: "method-1" });
+
+    expect(emptyRes.status).toBe(500);
+    await expect(emptyRes.json()).resolves.toEqual({
+      error: "No se pudo cerrar la estadía. Reintentá en unos segundos.",
+    });
+  });
+
   it("maps an RPC failure to 400 with the SQL message", async () => {
     mockQuery
       .mockResolvedValueOnce([{ id: "session-1" }])

@@ -68,6 +68,14 @@ describe("GET /api/vehicles", () => {
     expect(mockQuery.mock.calls[2]?.[1]?.[1]).toBe(25);
   });
 
+  it("falls back to the default limit when it is not a number", async () => {
+    // B2: Number("abc") is NaN and Math.min/Math.max keep it, so it used to
+    // reach LIMIT $2 as NaN.
+    await get("?limit=abc");
+
+    expect(mockQuery.mock.calls[0]?.[1]?.[1]).toBe(100);
+  });
+
   it("returns 401 when there is no session", async () => {
     mockSession.mockResolvedValueOnce(null);
 

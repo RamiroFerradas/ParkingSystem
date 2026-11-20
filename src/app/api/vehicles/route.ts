@@ -3,6 +3,14 @@ import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { hasPermission } from "@/lib/auth/permissions";
 
+/** `Number("abc")` es NaN y `Math.min/Math.max` lo propagan hasta `LIMIT $2`. */
+function clampLimit(raw: string | null, fallback: number, min: number, max: number): number {
+  if (raw === null || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsed), min), max);
+}
+
 /** Listado de vehículos con búsqueda por patente (índice trgm) y última estadía. */
 export async function GET(request: Request) {
   const { user, error } = await requireUser();
@@ -16,7 +24,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 100), 1), 200);
+  const limit = clampLimit(url.searchParams.get("limit"), 100, 1, 200);
 
   try {
     const rows = await query(

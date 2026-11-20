@@ -62,9 +62,16 @@ export async function POST(request: Request) {
       .toUpperCase()
       .slice(0, 20);
 
-  if (!code || code.length > 20 || !name || name.length > 40) {
+  if (!name || name.length > 40) {
     return NextResponse.json(
       { error: "Nombre requerido (hasta 40 caracteres)" },
+      { status: 400 },
+    );
+  }
+  // El código explícito no se recorta: si el caller lo manda, se valida tal cual.
+  if (!code || code.length > 20) {
+    return NextResponse.json(
+      { error: "Código requerido (hasta 20 caracteres)" },
       { status: 400 },
     );
   }

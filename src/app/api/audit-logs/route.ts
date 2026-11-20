@@ -3,6 +3,14 @@ import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { hasPermission } from "@/lib/auth/permissions";
 
+/** `Number("abc")` es NaN y `Math.min/Math.max` lo propagan hasta `LIMIT $3`. */
+function clampLimit(raw: string | null, fallback: number, min: number, max: number): number {
+  if (raw === null || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsed), min), max);
+}
+
 /** Consulta del registro de auditoría (append-only). Solo admin. */
 
 export async function GET(request: Request) {
@@ -15,7 +23,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action")?.trim() || null;
   const entityType = url.searchParams.get("entityType")?.trim() || null;
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 100), 1), 500);
+  const limit = clampLimit(url.searchParams.get("limit"), 100, 1, 500);
 
   try {
     const rows = await query<{

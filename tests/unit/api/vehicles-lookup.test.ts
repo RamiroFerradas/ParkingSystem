@@ -107,6 +107,16 @@ describe("GET /api/vehicles/lookup", () => {
     await expect(res.json()).resolves.toEqual({ found: false });
   });
 
+  it("maps a database failure to a 400 instead of an unhandled 500", async () => {
+    // B4: the lookup query ran outside any try/catch and escaped as a 500.
+    mockQuery.mockRejectedValueOnce(new Error("conexión perdida"));
+
+    const res = await get("?plate=AB123CD");
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "conexión perdida" });
+  });
+
   it("returns 401 when there is no session", async () => {
     mockSession.mockResolvedValueOnce(null);
 

@@ -1,10 +1,19 @@
 import { loadHistorialAll, parseHistorialFilters } from "@/lib/queries/historial";
-import { requireUser } from "@/lib/api/guard";
+import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { historialScopeForSession } from "@/lib/auth/scope";
+
+const ART_TIME_ZONE = "America/Argentina/Cordoba";
 
 function csvEscape(value: string | number | null): string {
   const text = value == null ? "" : String(value);
   return /[",;\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+/** `toISOString()` es UTC: entre las 00:00 y las 03:00 ART fecha el día anterior. */
+function artDateStamp(date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ART_TIME_ZONE })
+    .format(date)
+    .replaceAll("-", "");
 }
 
 /** Export CSV del historial con los mismos filtros server-side que la página. */
@@ -22,7 +31,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const raw = Object.fromEntries(url.searchParams.entries());
   const filters = parseHistorialFilters(raw);
-  const rows = await loadHistorialAll(filters, scope);
+
+  let rows: Awaited<ReturnType<typeof loadHistorialAll>>;
+  try {
+    rows = await loadHistorialAll(filters, scope);
+  } catch (err) {
+    return rpcErrorResponse(err);
+  }
 
   const header = [
     "ticket",
@@ -57,7 +72,7 @@ export async function GET(request: Request) {
   }
 
   const csv = "\uFEFF" + lines.join("\r\n") + "\r\n";
-  const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const stamp = artDateStamp();
 
   return new Response(csv, {
     headers: {

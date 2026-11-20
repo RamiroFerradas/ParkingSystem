@@ -5,7 +5,12 @@ import { requireUser } from "@/lib/api/guard";
 import { historialScopeForSession } from "@/lib/auth/scope";
 import { loadHistorialAll } from "@/lib/queries/historial";
 
-vi.mock("@/lib/api/guard", () => ({ requireUser: vi.fn() }));
+vi.mock("@/lib/api/guard", async (importOriginal) => {
+  // B4: the route now maps DB failures through the real rpcErrorResponse.
+  const actual = await importOriginal<typeof import("@/lib/api/guard")>();
+  return { ...actual, requireUser: vi.fn() };
+});
+
 vi.mock("@/lib/auth/scope", () => ({ historialScopeForSession: vi.fn() }));
 vi.mock("@/lib/queries/historial", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/queries/historial")>();
@@ -120,6 +125,32 @@ describe("GET /api/sessions/export", () => {
       },
       { userId: "user-1" },
     );
+  });
+
+  it("stamps the filename with the Argentine date, not the UTC one", async () => {
+    // B7: 02:30 UTC on Jan 15 is still Jan 14 in America/Argentina/Cordoba (UTC-3),
+    // so `toISOString()` used to name the file with yesterday's date.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T02:30:00Z"));
+    try {
+      const res = await get();
+
+      expect(res.headers.get("Content-Disposition")).toContain(
+        'filename="historial-20260114.csv"',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("maps a database failure to a 400 instead of an unhandled 500", async () => {
+    // B4: the query ran outside any try/catch and escaped as a 500.
+    mockLoad.mockRejectedValueOnce(new Error("conexión perdida"));
+
+    const res = await get();
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "conexión perdida" });
   });
 
   it("returns the 401 response from the guard", async () => {

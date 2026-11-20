@@ -137,10 +137,18 @@ describe("POST /api/vehicle-types", () => {
 
   it("rejects an explicit code longer than 20 characters", async () => {
     // Explicit codes are not truncated; the derived-code path is the one sliced to 20.
-    // The message blames the name even when the code is the offending field.
+    // A3: the message now names the field and limit that actually failed.
     const res = await POST(
       jsonRequest(url, "POST", { name: "Moto", code: "m".repeat(21) }),
     );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Código requerido (hasta 20 caracteres)" });
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it("keeps naming the name field when the name is too long", async () => {
+    const res = await POST(jsonRequest(url, "POST", { name: "A".repeat(41) }));
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Nombre requerido (hasta 40 caracteres)" });

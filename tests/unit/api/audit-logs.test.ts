@@ -84,11 +84,12 @@ describe("GET /api/audit-logs", () => {
     expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100]);
   });
 
-  it("does not sanitize a non-numeric limit (current behaviour)", async () => {
-    // Number("abc") is NaN, so the clamp keeps NaN and pg would receive it.
+  it("falls back to the default limit when it is not a number", async () => {
+    // A4: the old expectation pinned the bug (`toBeNaN()`, NaN reached LIMIT $3).
+    // A non-numeric limit must degrade to the default instead of failing the query.
     await GET(request("?limit=abc"));
 
-    expect(db.query.mock.calls[0]?.[1]?.[2]).toBeNaN();
+    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100]);
   });
 
   it("maps a database failure to a 400", async () => {
