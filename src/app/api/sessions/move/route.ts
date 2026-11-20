@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 
 interface SessionRow {
   id: string;
@@ -34,15 +34,10 @@ class MoveError extends Error {
  * y hora de ingreso (no se recobra ni se emite un ticket nuevo).
  */
 export async function POST(request: Request) {
-  const { user, error } = await requireUser();
-  if (error) return error;
-
-  if (!(await hasPermission(user, "session.open"))) {
-    return NextResponse.json(
-      { error: "No tenés permiso para mover vehículos" },
-      { status: 403 },
-    );
-  }
+  const { context, error } = await getBranchContextOrFail("session.open");
+  if (error) return NextResponse.json(error.body, { status: error.status });
+  const user = context.user;
+  const branchId = context.branchId;
 
   let body: Record<string, unknown>;
   try {
@@ -69,9 +64,9 @@ export async function POST(request: Request) {
          FROM parking_sessions s
          JOIN vehicles v      ON v.id = s.vehicle_id
          JOIN parking_boxes b ON b.id = s.box_id
-        WHERE s.id = $1
+        WHERE s.id = $1 AND s.branch_id = $2
         FOR UPDATE OF s`,
-      [sessionId],
+      [sessionId, branchId],
     );
     const session = sessionRes.rows[0];
     if (!session) {
@@ -84,8 +79,8 @@ export async function POST(request: Request) {
     const boxRes = await client.query<BoxRow>(
       `SELECT id, number, is_active, is_service_enabled
          FROM parking_boxes
-        WHERE id = $1`,
-      [boxId],
+        WHERE id = $1 AND branch_id = $2`,
+      [boxId, branchId],
     );
     const box = boxRes.rows[0];
     if (!box) {
@@ -130,8 +125,8 @@ export async function POST(request: Request) {
     );
 
     await client.query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before, after)
-       VALUES (gen_random_uuid(), $1, 'session.move', 'parking_session', $2,
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, before, after)
+       VALUES (gen_random_uuid(), $1, $7, 'session.move', 'parking_session', $2,
                jsonb_build_object('box_id', $3::uuid, 'box_number', $4::text),
                jsonb_build_object('box_id', $5::uuid, 'box_number', $6::text))`,
       [
@@ -141,6 +136,7 @@ export async function POST(request: Request) {
         session.box_number,
         box.id,
         box.number,
+        branchId,
       ],
     );
 

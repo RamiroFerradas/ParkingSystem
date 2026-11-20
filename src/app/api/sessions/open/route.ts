@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 import { normalizePlate } from "@/lib/plate";
 
 interface OpenResult {
@@ -15,13 +15,14 @@ interface ParkedSession {
   ticket_number: string;
   box_id: string;
   box_number: string;
+  branch_id: string;
   entry_at: Date;
 }
 
 async function findParked(plate: string): Promise<ParkedSession[]> {
   return query<ParkedSession>(
     `SELECT s.id AS session_id, s.ticket_number::text, s.box_id,
-            b.number AS box_number, s.entry_at
+            b.number AS box_number, s.branch_id, s.entry_at
        FROM parking_sessions s
        JOIN vehicles v      ON v.id = s.vehicle_id
        JOIN parking_boxes b ON b.id = s.box_id
@@ -36,7 +37,20 @@ function vehicleParkedResponse(
   plate: string,
   current: ParkedSession,
   boxId: string,
+  sameBranch: boolean,
 ): NextResponse {
+  // Una estadía abierta en otra sucursal no expone box ni ticket: solo se
+  // informa que el vehículo ya está adentro en otro lado.
+  if (!sameBranch) {
+    return NextResponse.json(
+      {
+        code: "VEHICLE_PARKED",
+        error: `La patente ${plate} ya está estacionada en otra sucursal.`,
+      },
+      { status: 409 },
+    );
+  }
+
   const sameBox = current.box_id === boxId;
   return NextResponse.json(
     {
@@ -58,14 +72,10 @@ function vehicleParkedResponse(
 }
 
 export async function POST(request: Request) {
-  const { user, error } = await requireUser();
-  if (error) return error;
-  if (!(await hasPermission(user, "session.open"))) {
-    return NextResponse.json(
-      { error: "No tenés permiso para registrar ingresos" },
-      { status: 403 },
-    );
-  }
+  const { context, error } = await getBranchContextOrFail("session.open");
+  if (error) return NextResponse.json(error.body, { status: error.status });
+  const user = context.user;
+  const branchId = context.branchId;
 
   let body: Record<string, unknown>;
   try {
@@ -96,11 +106,27 @@ export async function POST(request: Request) {
   const cleanDamage =
     typeof damageNotes === "string" ? damageNotes.trim().slice(0, 500).trim() : "";
 
+  // La box debe pertenecer a la sucursal activa: el branch_id lo deriva el RPC
+  // de la box, así que sin este chequeo un usuario podría ingresar en otra.
+  const boxRows = await query<{ number: string }>(
+    `SELECT number FROM parking_boxes WHERE id = $1 AND branch_id = $2`,
+    [boxId, branchId],
+  );
+  if (!boxRows[0]) {
+    return NextResponse.json({ error: "Box inexistente" }, { status: 404 });
+  }
+
   // Si la patente ya está estacionada, no se crea una segunda estadía: la UI
   // necesita saber dónde está para ofrecer moverla al box elegido.
   const parked = await findParked(cleanPlate);
   if (parked.length > 0) {
-    return vehicleParkedResponse(cleanPlate, parked[0]!, boxId);
+    const current = parked[0]!;
+    return vehicleParkedResponse(
+      cleanPlate,
+      current,
+      boxId,
+      current.branch_id === branchId,
+    );
   }
 
   try {
@@ -132,13 +158,19 @@ export async function POST(request: Request) {
     if (message.includes("El box ya está ocupado")) {
       const races = await findParked(cleanPlate);
       if (races.length > 0) {
-        return vehicleParkedResponse(cleanPlate, races[0]!, boxId);
+        const current = races[0]!;
+        return vehicleParkedResponse(
+          cleanPlate,
+          current,
+          boxId,
+          current.branch_id === branchId,
+        );
       }
-      const boxRows = await query<{ number: string }>(
-        `SELECT number FROM parking_boxes WHERE id = $1`,
-        [boxId],
+      const takenBoxRows = await query<{ number: string }>(
+        `SELECT number FROM parking_boxes WHERE id = $1 AND branch_id = $2`,
+        [boxId, branchId],
       );
-      const number = boxRows[0]?.number;
+      const number = takenBoxRows[0]?.number;
       return NextResponse.json(
         {
           code: "BOX_TAKEN",

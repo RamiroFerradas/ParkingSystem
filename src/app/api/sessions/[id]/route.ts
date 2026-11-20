@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 
 /** Payload completo de una estadía para (re)imprimir su ticket. */
 
@@ -8,8 +9,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { user, error } = await requireUser();
-  if (error) return error;
+  const { context, error } = await getBranchContextOrFail();
+  if (error) return NextResponse.json(error.body, { status: error.status });
 
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
@@ -48,8 +49,8 @@ export async function GET(
          JOIN parking_boxes b ON b.id = s.box_id
          LEFT JOIN payments p ON p.session_id = s.id
          LEFT JOIN payment_methods m ON m.id = p.method_id
-        WHERE s.id = $1`,
-      [id],
+        WHERE s.id = $1 AND s.branch_id = $2`,
+      [id, context.branchId],
     );
     if (rows.length === 0) {
       return NextResponse.json({ error: "Estadía no encontrada" }, { status: 404 });
