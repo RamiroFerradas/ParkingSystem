@@ -17,7 +17,7 @@ export function Sidebar({ context }: { context: BranchContext }) {
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900">
       <div className="border-b border-neutral-800 px-4 py-4">
         <p className="text-sm font-semibold tracking-tight text-neutral-100">
-          Parking System
+          Mauricio&apos;s Parking
         </p>
         <p className="mt-0.5 text-xs text-neutral-500">Gestión de estacionamiento</p>
       </div>
@@ -33,8 +33,7 @@ export function Sidebar({ context }: { context: BranchContext }) {
       <SidebarNav groups={groups} />
 
       <div className="border-t border-neutral-800 px-4 py-3">
-        <p className="truncate text-sm text-neutral-200">{context.user.name}</p>
-        <p className="text-xs text-neutral-500">
+        <p className="text-sm font-medium text-neutral-200">
           {context.role ? (ROLE_LABELS[context.role] ?? context.role) : "Master"}
         </p>
         <div className="mt-2 flex items-center justify-between">
