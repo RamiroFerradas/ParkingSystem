@@ -1043,20 +1043,20 @@ try {
     Number((await dbRows(`SELECT (calc_fee_breakdown($1::uuid, $2::uuid, $3::int)->>'total_cents')::bigint AS c`, [await smokeBranch(), autoTariffId, minutes]))[0].c);
   const fixedCents = await calc(60);
   const tempAuto = await dbRows(
-    `INSERT INTO parking_tariffs (name, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from, valid_to)
-     VALUES ('E2E temporal AUTO', $1, 60, 'flat', 999900, now() - interval '1 hour', now() + interval '1 hour')
+    `INSERT INTO parking_tariffs (name, branch_id, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from, valid_to)
+     VALUES ('E2E temporal AUTO', $2, $1, 60, 'flat', 999900, now() - interval '1 hour', now() + interval '1 hour')
      RETURNING id`,
-    [autoTariffId],
+    [autoTariffId, await smokeBranch()],
   );
   createdTariffIds.push(tempAuto[0].id);
   ok("cálculo: temporal vigente pisa a la fija", (await calc(60)) === 999900, `fixed=${fixedCents}`);
   await dbRows(`UPDATE parking_tariffs SET valid_to = now() - interval '1 minute' WHERE id = $1`, [tempAuto[0].id]);
   ok("cálculo: temporal vencida vuelve a la fija", (await calc(60)) === fixedCents);
   const futureOnly = await dbRows(
-    `INSERT INTO parking_tariffs (name, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from)
-     VALUES ('E2E futura AUTO', $1, 60, 'flat', 777700, now() + interval '1 day')
+    `INSERT INTO parking_tariffs (name, branch_id, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from)
+     VALUES ('E2E futura AUTO', $2, $1, 60, 'flat', 777700, now() + interval '1 day')
      RETURNING id`,
-    [autoTariffId],
+    [autoTariffId, await smokeBranch()],
   );
   createdTariffIds.push(futureOnly[0].id);
   ok("cálculo: tarifa futura no se aplica antes de tiempo", (await calc(60)) === fixedCents);
