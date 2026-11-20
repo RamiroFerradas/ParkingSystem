@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 
 const PG_UNIQUE = "23505";
 
@@ -14,23 +14,19 @@ interface BoxRow {
 }
 
 async function requireAdmin() {
-  const { user, error } = await requireUser();
-  if (error) return { user: null, response: error };
-  if (!(await hasPermission(user, "box.manage"))) {
+  const { context, error } = await getBranchContextOrFail("box.manage");
+  if (error) {
     return {
-      user: null,
-      response: NextResponse.json(
-        { error: "Solo el administrador puede modificar la estructura de boxes" },
-        { status: 403 },
-      ),
+      context: null,
+      response: NextResponse.json(error.body, { status: error.status }),
     };
   }
-  return { user, response: null };
+  return { context, response: null };
 }
 
 /** Dar de alta un box individual en un piso. */
 export async function POST(request: Request) {
-  const { user, response } = await requireAdmin();
+  const { context, response } = await requireAdmin();
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -51,18 +47,33 @@ export async function POST(request: Request) {
   }
 
   try {
+    // El piso debe pertenecer a la sucursal activa: es lo que evita crear un
+    // box de otra sucursal escondido detrás de un floor_id ajeno.
+    const floor = await query<{ id: string }>(
+      "SELECT id FROM parking_floors WHERE id = $1 AND branch_id = $2",
+      [floorId, context!.branchId],
+    );
+    if (!floor[0]) {
+      return NextResponse.json({ error: "El piso indicado no existe" }, { status: 400 });
+    }
+
     const rows = await query<BoxRow>(
-      `INSERT INTO parking_boxes (number, sector, floor_id)
-       VALUES ($1, $2, $3)
+      `INSERT INTO parking_boxes (number, sector, floor_id, branch_id)
+       VALUES ($1, $2, $3, $4)
        RETURNING id, number, sector, floor_id, is_active`,
-      [cleanNumber, typeof sector === "string" && sector.trim() ? sector.trim() : null, floorId],
+      [
+        cleanNumber,
+        typeof sector === "string" && sector.trim() ? sector.trim() : null,
+        floorId,
+        context!.branchId,
+      ],
     );
 
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'box.create', 'parking_box', $2,
-               jsonb_build_object('number', $3::text, 'floor_id', $4::text))`,
-      [user!.userId, rows[0]!.id, cleanNumber, floorId],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'box.create', 'parking_box', $3,
+               jsonb_build_object('number', $4::text, 'floor_id', $5::text))`,
+      [context!.user.userId, context!.branchId, rows[0]!.id, cleanNumber, floorId],
     );
 
     return NextResponse.json({ ok: true, box: rows[0] }, { status: 201 });
@@ -84,7 +95,7 @@ export async function POST(request: Request) {
 
 /** Editar box: número, sector, piso o alta/baja. No se da de baja un box ocupado. */
 export async function PATCH(request: Request) {
-  const { user, response } = await requireAdmin();
+  const { context, response } = await requireAdmin();
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -104,8 +115,8 @@ export async function PATCH(request: Request) {
 
   if (wantsDeactivate || wantsStructural) {
     const current = await query<{ number: string; floor_id: string }>(
-      `SELECT number, floor_id FROM parking_boxes WHERE id = $1`,
-      [id],
+      `SELECT number, floor_id FROM parking_boxes WHERE id = $1 AND branch_id = $2`,
+      [id, context!.branchId],
     );
     if (current.length === 0) {
       return NextResponse.json({ error: "Box inexistente" }, { status: 404 });
@@ -135,7 +146,7 @@ export async function PATCH(request: Request) {
   }
 
   const updates: string[] = ["updated_at = now()", "version = version + 1"];
-  const params: unknown[] = [id];
+  const params: unknown[] = [id, context!.branchId];
 
   if (typeof number === "string") {
     const clean = number.trim().toUpperCase();
@@ -160,8 +171,9 @@ export async function PATCH(request: Request) {
 
   try {
     const rows = await query<BoxRow>(
-      `UPDATE parking_boxes SET ${updates.join(", ")} WHERE id = $1
-       RETURNING id, number, sector, floor_id, is_active`,
+      `UPDATE parking_boxes SET ${updates.join(", ")}
+        WHERE id = $1 AND branch_id = $2
+        RETURNING id, number, sector, floor_id, is_active`,
       params,
     );
     if (rows.length === 0) {
@@ -169,9 +181,14 @@ export async function PATCH(request: Request) {
     }
 
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'box.update', 'parking_box', $2, $3::jsonb)`,
-      [user!.userId, id, JSON.stringify({ number, sector, floorId, isActive })],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'box.update', 'parking_box', $3, $4::jsonb)`,
+      [
+        context!.user.userId,
+        context!.branchId,
+        id,
+        JSON.stringify({ number, sector, floorId, isActive }),
+      ],
     );
 
     return NextResponse.json({ ok: true, box: rows[0] });

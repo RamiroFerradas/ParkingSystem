@@ -115,4 +115,43 @@ describe("multi-branch isolation", () => {
       );
     });
   });
+
+  it("allows the same floor name and box number in two branches", async () => {
+    await withRollback(async (db) => {
+      const { boxes } = await pickFixtures(db);
+      const suffix = crypto.randomUUID().slice(0, 6);
+      const principal = (
+        await db.query("SELECT branch_id FROM parking_boxes WHERE id = $1", [boxes[0].id])
+      ).rows[0].branch_id;
+      const { branch } = await secondBranch(db);
+
+      const floorA = (
+        await db.query(
+          "INSERT INTO parking_floors (name, branch_id) VALUES ($1,$2) RETURNING id",
+          [`Planta ${suffix}`, principal],
+        )
+      ).rows[0];
+      const floorB = (
+        await db.query(
+          "INSERT INTO parking_floors (name, branch_id) VALUES ($1,$2) RETURNING id",
+          [`Planta ${suffix}`, branch.id],
+        )
+      ).rows[0];
+
+      const number = `C${suffix.toUpperCase().slice(0, 4)}`;
+      await db.query(
+        "INSERT INTO parking_boxes (number, branch_id, floor_id) VALUES ($1,$2,$3)",
+        [number, principal, floorA.id],
+      );
+      await db.query(
+        "INSERT INTO parking_boxes (number, branch_id, floor_id) VALUES ($1,$2,$3)",
+        [number, branch.id, floorB.id],
+      );
+
+      const count = (
+        await db.query("SELECT count(*)::int AS n FROM parking_boxes WHERE number = $1", [number])
+      ).rows[0].n;
+      assert.equal(count, 2);
+    });
+  });
 });

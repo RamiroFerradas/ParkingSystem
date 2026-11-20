@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 
 const PG_UNIQUE = "23505";
 
@@ -13,23 +13,19 @@ interface FloorRow {
 }
 
 async function requireAdmin() {
-  const { user, error } = await requireUser();
-  if (error) return { user: null, response: error };
-  if (!(await hasPermission(user, "box.manage"))) {
+  const { context, error } = await getBranchContextOrFail("box.manage");
+  if (error) {
     return {
-      user: null,
-      response: NextResponse.json(
-        { error: "Solo el administrador puede modificar la estructura de boxes" },
-        { status: 403 },
-      ),
+      context: null,
+      response: NextResponse.json(error.body, { status: error.status }),
     };
   }
-  return { user, response: null };
+  return { context, response: null };
 }
 
 /** Crear piso + generación masiva de boxes en una sola sentencia atómica. */
 export async function POST(request: Request) {
-  const { user, response } = await requireAdmin();
+  const { context, response } = await requireAdmin();
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -64,10 +60,10 @@ export async function POST(request: Request) {
     try {
       await client.query("BEGIN");
       const floorRes = await client.query<FloorRow>(
-        `INSERT INTO parking_floors (name, sort_order)
-         VALUES ($1, $2)
+        `INSERT INTO parking_floors (name, sort_order, branch_id)
+         VALUES ($1, $2, $3)
          RETURNING id, name, sort_order, is_active`,
-        [name, sortOrder],
+        [name, sortOrder, context!.branchId],
       );
       floor = floorRes.rows[0]!;
       floorId = floor.id;
@@ -78,9 +74,9 @@ export async function POST(request: Request) {
           (_, i) => `${prefix}-${String(i + 1).padStart(2, "0")}`,
         );
         await client.query(
-          `INSERT INTO parking_boxes (number, floor_id)
-           SELECT x, $1 FROM unnest($2::text[]) AS x`,
-          [floorId, boxes],
+          `INSERT INTO parking_boxes (number, floor_id, branch_id)
+           SELECT x, $1, $2 FROM unnest($3::text[]) AS x`,
+          [floorId, context!.branchId, boxes],
         );
       }
       await client.query("COMMIT");
@@ -92,10 +88,10 @@ export async function POST(request: Request) {
     }
 
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'floor.create', 'parking_floor', $2,
-               jsonb_build_object('name', $3::text, 'boxes_created', $4::int))`,
-      [user!.userId, floorId, name, boxCount],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'floor.create', 'parking_floor', $3,
+               jsonb_build_object('name', $4::text, 'boxes_created', $5::int))`,
+      [context!.user.userId, context!.branchId, floorId, name, boxCount],
     );
 
     return NextResponse.json({ ok: true, floor }, { status: 201 });
@@ -114,7 +110,7 @@ export async function POST(request: Request) {
 
 /** Editar piso: nombre, orden o alta/baja. */
 export async function PATCH(request: Request) {
-  const { user, response } = await requireAdmin();
+  const { context, response } = await requireAdmin();
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -130,7 +126,7 @@ export async function PATCH(request: Request) {
   }
 
   const updates: string[] = ["updated_at = now()", "version = version + 1"];
-  const params: unknown[] = [id];
+  const params: unknown[] = [id, context!.branchId];
 
   if (typeof name === "string") {
     if (!name.trim() || name.trim().length > 50) {
@@ -150,8 +146,9 @@ export async function PATCH(request: Request) {
 
   try {
     const rows = await query<FloorRow>(
-      `UPDATE parking_floors SET ${updates.join(", ")} WHERE id = $1
-       RETURNING id, name, sort_order, is_active`,
+      `UPDATE parking_floors SET ${updates.join(", ")}
+        WHERE id = $1 AND branch_id = $2
+        RETURNING id, name, sort_order, is_active`,
       params,
     );
     if (rows.length === 0) {
@@ -159,9 +156,14 @@ export async function PATCH(request: Request) {
     }
 
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'floor.update', 'parking_floor', $2, $3::jsonb)`,
-      [user!.userId, id, JSON.stringify({ name, sortOrder, isActive })],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'floor.update', 'parking_floor', $3, $4::jsonb)`,
+      [
+        context!.user.userId,
+        context!.branchId,
+        id,
+        JSON.stringify({ name, sortOrder, isActive }),
+      ],
     );
 
     return NextResponse.json({ ok: true, floor: rows[0] });

@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 
-/** Abrir turno de caja (manual; cualquier usuario con shift.manage puede abrirlo). */
+/** Abrir turno de caja de la sucursal activa (manual, con shift.manage). */
 export async function POST(request: Request) {
-  const { user, error } = await requireUser();
-  if (error) return error;
-  if (!(await hasPermission(user, "shift.manage"))) {
-    return NextResponse.json(
-      { error: "No tenés permiso para gestionar turnos de caja" },
-      { status: 403 },
-    );
-  }
+  const { context, error } = await getBranchContextOrFail("shift.manage");
+  if (error) return NextResponse.json(error.body, { status: error.status });
 
   let notes: string | null = null;
   try {
@@ -24,21 +18,21 @@ export async function POST(request: Request) {
 
   try {
     const rows = await query<{ id: string; opened_at: string }>(
-      `INSERT INTO cash_shifts (id, opened_by, opening_notes)
-       VALUES (gen_random_uuid(), $1, $2)
+      `INSERT INTO cash_shifts (id, opened_by, branch_id, opening_notes)
+       VALUES (gen_random_uuid(), $1, $2, $3)
        RETURNING id, opened_at`,
-      [user.userId, notes],
+      [context.user.userId, context.branchId, notes],
     );
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id)
-       VALUES (gen_random_uuid(), $1, 'shift.open', 'cash_shift', $2)`,
-      [user.userId, rows[0]!.id],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id)
+       VALUES (gen_random_uuid(), $1, $2, 'shift.open', 'cash_shift', $3)`,
+      [context.user.userId, context.branchId, rows[0]!.id],
     );
     return NextResponse.json({ ok: true, shiftId: rows[0]!.id, openedAt: rows[0]!.opened_at });
   } catch (err) {
     if (err instanceof Error && err.message.includes("uq_open_cash_shift")) {
       return NextResponse.json(
-        { error: "Ya hay un turno abierto. Cerralo antes de abrir otro." },
+        { error: "Ya hay un turno abierto en esta sucursal. Cerralo antes de abrir otro." },
         { status: 400 },
       );
     }
