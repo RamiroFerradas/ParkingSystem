@@ -1038,8 +1038,9 @@ try {
 
   // Precedencia en el cobro: temporal vigente > fija, y al vencer vuelve la fija.
   const autoTariffId = autoId2;
+  // calc_fee_breakdown pasó a (branch, vehicle_type, minutes) en la 016.
   const calc = async (minutes) =>
-    Number((await dbRows(`SELECT (calc_fee_breakdown($1::uuid, $2::int)->>'total_cents')::bigint AS c`, [autoTariffId, minutes]))[0].c);
+    Number((await dbRows(`SELECT (calc_fee_breakdown($1::uuid, $2::uuid, $3::int)->>'total_cents')::bigint AS c`, [await smokeBranch(), autoTariffId, minutes]))[0].c);
   const fixedCents = await calc(60);
   const tempAuto = await dbRows(
     `INSERT INTO parking_tariffs (name, vehicle_type_id, duration_minutes, duration_mode, amount_cents, valid_from, valid_to)
