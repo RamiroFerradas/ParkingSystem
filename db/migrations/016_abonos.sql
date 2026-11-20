@@ -14,8 +14,16 @@ BEGIN;
 -- ============ 1. Tipo de producto tarifario ============
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tariff_kind') THEN
-    CREATE TYPE tariff_kind AS ENUM ('hourly', 'monthly');
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_type t
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE t.typname = 'tariff_kind' AND n.nspname = current_schema()
+  ) THEN
+    EXECUTE format(
+      'CREATE TYPE %I.tariff_kind AS ENUM (''hourly'', ''monthly'')',
+      current_schema()
+    );
   END IF;
 END $$;
 
@@ -39,8 +47,16 @@ CREATE INDEX IF NOT EXISTS idx_tariffs_branch_kind
 -- ============ 2. Abonos ============
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_status') THEN
-    CREATE TYPE subscription_status AS ENUM ('active', 'cancelled');
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_type t
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE t.typname = 'subscription_status' AND n.nspname = current_schema()
+  ) THEN
+    EXECUTE format(
+      'CREATE TYPE %I.subscription_status AS ENUM (''active'', ''cancelled'')',
+      current_schema()
+    );
   END IF;
 END $$;
 
