@@ -39,6 +39,7 @@ async function cleanupFixtures(db) {
   );
   await db(`DELETE FROM payments WHERE session_id IN (${sessionIds})`);
   await db(`DELETE FROM parking_sessions WHERE exit_notes LIKE '%TEST-D%' OR entry_notes LIKE '%TEST-D%'`);
+  await db(`DELETE FROM cash_shifts WHERE opened_by IN (SELECT id FROM profiles WHERE full_name = 'Admin Smoke')`);
   await db(`DELETE FROM vehicles WHERE plate IN ('TESTD1','TESTD2','TESTD3')`);
   await db(`DELETE FROM audit_logs WHERE actor_id IN (SELECT id FROM profiles WHERE full_name = 'Admin Smoke')`);
   await db(`DELETE FROM auth_credentials WHERE user_id IN (SELECT id FROM profiles WHERE full_name = 'Admin Smoke')`);
@@ -71,6 +72,17 @@ try {
   const { rows: methods } = await db("SELECT id FROM payment_methods WHERE code = 'EFECTIVO'");
   await cleanupFixtures(db);
   const actor = await createTestAdmin(db);
+
+  // Desde la migración 011, open_session exige un turno de caja abierto y la
+  // base de CI arranca sin turnos: abrimos uno para la sucursal del box.
+  const branchId = (
+    await db(`SELECT branch_id FROM parking_boxes WHERE id = $1`, [boxes[0].id])
+  ).rows[0]?.branch_id;
+  if (!branchId) throw new Error("el box de prueba no tiene sucursal asignada");
+  await db(
+    `INSERT INTO cash_shifts (id, opened_by, branch_id) VALUES (gen_random_uuid(), $1, $2)`,
+    [actor, branchId],
+  );
 
 
   // --- D3: apertura ---
