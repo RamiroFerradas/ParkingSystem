@@ -4,6 +4,10 @@ import { query } from "@/lib/db/client";
 import { formatElapsed, formatARS, formatTime } from "@/lib/format";
 import { historialScopeForSession } from "@/lib/auth/scope";
 
+// La página consulta la DB en el servidor; en Next 16 dev la navegación se
+// valida contra datos sin cachear. Se opta por ruta bloqueante (sin PPR).
+export const instant = false;
+
 interface OpenStay {
   id: string;
   ticket_number: string;
@@ -29,7 +33,7 @@ async function loadOpenStays(ownerId?: string): Promise<OpenStay[]> {
             s.key_left,
             s.damage_notes,
             GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int) AS elapsed_minutes,
-            (calc_fee_breakdown(s.vehicle_type_id,
+            (calc_fee_breakdown(b.branch_id, s.vehicle_type_id,
                 GREATEST(0, ceil(EXTRACT(EPOCH FROM (now() - s.entry_at)) / 60)::int))
              ->>'total_cents') AS quote_cents
        FROM parking_sessions s
