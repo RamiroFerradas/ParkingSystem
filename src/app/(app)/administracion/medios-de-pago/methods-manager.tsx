@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PromptDialog } from "@/components/ui/dialog";
 
 export interface MethodView {
   id: string;
@@ -21,6 +22,7 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [renaming, setRenaming] = useState<MethodView | null>(null);
 
   async function call(url: string, method: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -55,10 +57,17 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
     setName("");
   }
 
-  async function rename(m: MethodView) {
-    const val = prompt(`Nuevo nombre para ${m.code}:`, m.name) ?? "";
-    if (!val.trim() || val.trim() === m.name) return;
-    if (await call("/api/payment-methods", "PATCH", { id: m.id, name: val.trim() })) await reload();
+  async function applyRename(value: string) {
+    if (!renaming) return;
+    const next = value.trim();
+    if (!next || next === renaming.name) {
+      setRenaming(null);
+      return;
+    }
+    if (await call("/api/payment-methods", "PATCH", { id: renaming.id, name: next })) {
+      setRenaming(null);
+      await reload();
+    }
   }
 
   return (
@@ -104,7 +113,7 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
                 <td className="px-4 py-2.5 text-neutral-200">{m.name}</td>
                 <td className="px-4 py-2.5 text-right">
                   <span className="flex justify-end gap-1.5">
-                    <button className={btnCls} disabled={busy} onClick={() => rename(m)}>
+                    <button className={btnCls} disabled={busy} onClick={() => setRenaming(m)}>
                       Renombrar
                     </button>
                     <button
@@ -124,6 +133,25 @@ export function MethodsManager({ methods }: { methods: MethodView[] }) {
           </tbody>
         </table>
       </section>
+
+      <PromptDialog
+        key={renaming?.id ?? "closed"}
+        open={renaming !== null}
+        onClose={() => setRenaming(null)}
+        onSubmit={applyRename}
+        title="Renombrar medio de pago"
+        description={
+          <>
+            El código{" "}
+            <span className="font-mono text-neutral-200">{renaming?.code}</span> no
+            cambia. El nombre es lo que ve el operador al cobrar.
+          </>
+        }
+        label="Nombre"
+        defaultValue={renaming?.name ?? ""}
+        confirmLabel="Guardar nombre"
+        busy={busy}
+      />
     </div>
   );
 }

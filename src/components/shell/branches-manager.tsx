@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ui/dialog";
 
 export interface BranchRow {
   id: string;
@@ -11,6 +12,25 @@ export interface BranchRow {
   boxes: number;
 }
 
+function TrashIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M4 7h16M10 11v6M14 11v6" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
 export function BranchesManager({ branches }: { branches: BranchRow[] }) {
   const router = useRouter();
   const [editing, setEditing] = useState<string | null>(null);
@@ -18,6 +38,9 @@ export function BranchesManager({ branches }: { branches: BranchRow[] }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  const [deleting, setDeleting] = useState<BranchRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function startEdit(branch: BranchRow) {
     setEditing(branch.id);
@@ -50,26 +73,23 @@ export function BranchesManager({ branches }: { branches: BranchRow[] }) {
     }
   }
 
-  async function remove(branch: BranchRow) {
-    if (
-      !window.confirm(
-        `¿Eliminar "${branch.name}"? Solo se puede si no tiene boxes, estadías, turnos, tarifas ni usuarios.`,
-      )
-    ) {
-      return;
-    }
-    setBusy(branch.id);
-    setError(null);
+  async function confirmDelete() {
+    if (!deleting) return;
+    setBusy(deleting.id);
+    setDeleteError(null);
     try {
-      const response = await fetch(`/api/branches/${branch.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/branches/${deleting.id}`, {
+        method: "DELETE",
+      });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(data.error ?? "No se pudo eliminar");
+        setDeleteError(data.error ?? "No se pudo eliminar la sucursal");
         return;
       }
+      setDeleting(null);
       router.refresh();
     } catch {
-      setError("No se pudo eliminar");
+      setDeleteError("No se pudo eliminar la sucursal");
     } finally {
       setBusy(null);
     }
@@ -164,7 +184,10 @@ export function BranchesManager({ branches }: { branches: BranchRow[] }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(branch)}
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleting(branch);
+                    }}
                     disabled={busy === branch.id}
                     className="rounded-md border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:border-red-400 disabled:opacity-60"
                   >
@@ -176,6 +199,29 @@ export function BranchesManager({ branches }: { branches: BranchRow[] }) {
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onClose={() => {
+          if (busy === null) setDeleting(null);
+        }}
+        onConfirm={confirmDelete}
+        busy={busy !== null}
+        title={`Eliminar ${deleting?.name ?? "sucursal"}`}
+        confirmLabel="Eliminar sucursal"
+        icon={<TrashIcon />}
+        description={
+          <>
+            La sucursal <strong className="font-semibold text-neutral-100">
+              {deleting?.name}
+            </strong>{" "}
+            se va a borrar definitivamente. Solo es posible si no tiene boxes,
+            estadías, turnos, tarifas ni usuarios asignados. Si tiene datos,
+            desactivala en vez de eliminarla.
+          </>
+        }
+        error={deleteError}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLE_LABELS } from "@/components/shell/nav-config";
+import { PromptDialog } from "@/components/ui/dialog";
 import { PermissionsEditor } from "./permissions-editor";
 
 export interface ManagedUser {
@@ -30,6 +31,8 @@ export function UsersManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionsFor, setPermissionsFor] = useState<ManagedUser | null>(null);
+  const [passwordFor, setPasswordFor] = useState<ManagedUser | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Alta de usuario
   const [email, setEmail] = useState("");
@@ -89,13 +92,31 @@ export function UsersManager({
     router.refresh();
   }
 
-  async function resetPassword(id: string, email: string) {
-    const pass = prompt(`Nueva contraseña para ${email} (mínimo 8 caracteres):`) ?? "";
-    if (pass.length < 8) {
-      if (pass.length > 0) setError("La contraseña debe tener al menos 8 caracteres");
+  async function applyPassword(value: string) {
+    if (!passwordFor) return;
+    if (value.length < 8) {
+      setPasswordError("La contraseña debe tener al menos 8 caracteres");
       return;
     }
-    await patchUser(id, { password: pass });
+    setBusy(true);
+    setPasswordError(null);
+    try {
+      const res = await fetch(`/api/users/${passwordFor.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: value }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setPasswordError(data?.error ?? "No se pudo cambiar la contraseña");
+        return;
+      }
+      setPasswordFor(null);
+    } catch {
+      setPasswordError("No se pudo cambiar la contraseña");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -208,7 +229,10 @@ export function UsersManager({
                       <button
                         className={btnCls}
                         disabled={busy}
-                        onClick={() => resetPassword(u.id, u.email)}
+                        onClick={() => {
+                          setPasswordError(null);
+                          setPasswordFor(u);
+                        }}
                         title="Cambiar contraseña"
                       >
                         Contraseña
@@ -238,6 +262,32 @@ export function UsersManager({
           onClose={() => setPermissionsFor(null)}
         />
       )}
+
+      <PromptDialog
+        key={passwordFor?.id ?? "closed"}
+        open={passwordFor !== null}
+        onClose={() => {
+          if (!busy) setPasswordFor(null);
+        }}
+        onSubmit={applyPassword}
+        title="Cambiar contraseña"
+        description={
+          <>
+            Nueva contraseña para{" "}
+            <strong className="font-medium text-neutral-200">
+              {passwordFor?.full_name}
+            </strong>{" "}
+            ({passwordFor?.email}). La anterior deja de funcionar al guardar.
+          </>
+        }
+        label="Contraseña nueva"
+        type="password"
+        minLength={8}
+        hint="Mínimo 8 caracteres."
+        confirmLabel="Cambiar contraseña"
+        busy={busy}
+        error={passwordError}
+      />
 
       <p className="text-xs text-neutral-600">
         {ROLE_LABELS.admin}: acceso total. Supervisor: operación + reportes.
