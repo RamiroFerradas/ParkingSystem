@@ -22,7 +22,36 @@ async function api(path, options = {}) {
     jar.set(pair.slice(0, eq), pair.slice(eq + 1));
   }
   const body = await res.json().catch(() => null);
+  // Desde multi-sucursal, un login sin sucursal activa deja la sesión en
+  // "Seleccioná una sucursal". El smoke elige una para poder operar.
+  if (path === "/api/auth/login" && res.status === 200) {
+    await selectBranch();
+  }
   return { status: res.status, body };
+}
+
+let smokeBranchId = null;
+async function selectBranch() {
+  if (!smokeBranchId) {
+    const row = (
+      await dbRows(`SELECT id FROM branches WHERE is_active ORDER BY created_at LIMIT 1`)
+    )[0];
+    if (!row) throw new Error("el e2e necesita una sucursal activa");
+    smokeBranchId = row.id;
+  }
+  const res = await fetch(BASE + "/api/auth/switch-branch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", cookie: cookieHeader() },
+    body: JSON.stringify({ branchId: smokeBranchId }),
+  });
+  if (res.status !== 200) {
+    throw new Error(`switch-branch falló: ${res.status} ${await res.text()}`);
+  }
+  for (const c of res.headers.getSetCookie?.() ?? []) {
+    const [pair] = c.split(";");
+    const eq = pair.indexOf("=");
+    jar.set(pair.slice(0, eq), pair.slice(eq + 1));
+  }
 }
 
 const dbRows = async (sql, params) => {
@@ -51,8 +80,8 @@ async function createSmokeAdmin() {
   const { hash } = await import("@node-rs/argon2");
   const pwHash = await hash(smokePassword);
   const rows = await dbRows(
-    `INSERT INTO profiles (id, full_name, role, is_active, email)
-     VALUES (gen_random_uuid(), 'Admin E2E', 'admin', true, $1) RETURNING id`,
+    `INSERT INTO profiles (id, full_name, role, is_active, email, is_master)
+     VALUES (gen_random_uuid(), 'Admin E2E', 'admin', true, $1, true) RETURNING id`,
     [smokeEmail],
   );
   await dbRows(`INSERT INTO auth_credentials (user_id, password_hash) VALUES ($1, $2)`, [
@@ -545,6 +574,16 @@ try {
     process.exitCode = 1;
     process.exit(1);
   }
+
+  // Un usuario nuevo no tiene sucursal asignada y no podría operar: lo hacemos
+  // miembro de la sucursal del smoke para poder probar su sesión.
+  await dbRows(
+    `INSERT INTO user_branches (user_id, branch_id, role)
+     SELECT $1, b.id, 'employee'::user_role FROM branches b
+      WHERE b.is_active ORDER BY b.created_at LIMIT 1
+     ON CONFLICT DO NOTHING`,
+    [newEmp.body.user.id],
+  );
 
   const dupUser = await api("/api/users", {
     method: "POST",
