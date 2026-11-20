@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
+import { createUserSchema, isRole, type CreateUserPayload } from "@/lib/schemas/users";
 import { hash } from "@node-rs/argon2";
 
 const PG_UNIQUE = "23505";
-const ROLES = ["admin", "supervisor", "employee"] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface UserRow {
@@ -50,17 +51,14 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateUserPayload>(
+    request,
+    createUserSchema,
+    "Datos del usuario inválidos",
+  );
+  if (bodyError) return bodyError;
 
-  const { email, fullName, role, password } = body;
-  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
-  const cleanName = typeof fullName === "string" ? fullName.trim() : "";
-  const cleanPassword = typeof password === "string" ? password : "";
+  const { email: cleanEmail, fullName: cleanName, role, password: cleanPassword } = body;
 
   if (!EMAIL_RE.test(cleanEmail) || cleanEmail.length > 120) {
     return NextResponse.json({ error: "Email inválido" }, { status: 400 });
@@ -68,7 +66,7 @@ export async function POST(request: Request) {
   if (!cleanName || cleanName.length > 80) {
     return NextResponse.json({ error: "Nombre inválido" }, { status: 400 });
   }
-  if (!ROLES.includes(role as (typeof ROLES)[number])) {
+  if (!isRole(role)) {
     return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
   }
   if (cleanPassword.length < 8 || cleanPassword.length > 72) {

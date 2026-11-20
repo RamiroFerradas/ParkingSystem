@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { rpcErrorResponse } from "@/lib/api/guard";
+import { parseOptionalBody } from "@/lib/api/body";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import { openShiftSchema, type OpenShiftPayload } from "@/lib/schemas/operations";
 
 /** Abrir turno de caja de la sucursal activa (manual, con shift.manage). */
 export async function POST(request: Request) {
   const { context, error } = await getBranchContextOrFail("shift.manage");
   if (error) return NextResponse.json(error.body, { status: error.status });
 
-  let notes: string | null = null;
-  try {
-    const body = (await request.json()) as Record<string, unknown>;
-    if (typeof body.notes === "string" && body.notes.length > 0) notes = body.notes;
-  } catch {
-    // cuerpo opcional
-  }
+  const { data: body, error: bodyError } = await parseOptionalBody<OpenShiftPayload>(
+    request,
+    openShiftSchema,
+    "Datos del turno inválidos",
+  );
+  if (bodyError) return bodyError;
+
+  const notes =
+    typeof body.notes === "string" && body.notes.length > 0 ? body.notes : null;
 
   try {
     const rows = await query<{ id: string; opened_at: string }>(

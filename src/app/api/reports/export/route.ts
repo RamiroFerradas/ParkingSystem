@@ -1,6 +1,7 @@
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { hasPermission } from "@/lib/auth/permissions";
+import { parseQuery, reportExportQuerySchema } from "@/lib/schemas/misc";
 
 /** CSV de recaudación diaria del período, para planillas. */
 
@@ -22,8 +23,8 @@ export async function GET(request: Request) {
     return new Response("No tenés permiso", { status: 403 });
   }
 
-  const url = new URL(request.url);
-  const period = PERIODS.find((p) => p.key === url.searchParams.get("p")) ?? PERIODS[2]!;
+  const { p } = parseQuery(request, reportExportQuerySchema, {});
+  const period = PERIODS.find((candidate) => candidate.key === p) ?? PERIODS[2]!;
 
   try {
     const rows = await query<{ day: string; sessions: string; collected: string; methods: string }>(

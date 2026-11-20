@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
+import { parseBody } from "@/lib/api/body";
 import { getBranchContext } from "@/lib/auth/context";
+import { createBranchSchema, type CreateBranchBody } from "@/lib/schemas/catalogs";
 
 export async function GET() {
   const context = await getBranchContext();
@@ -33,20 +35,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Acceso restringido" }, { status: 403 });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateBranchBody>(
+    request,
+    createBranchSchema,
+    "El nombre es obligatorio",
+  );
+  if (bodyError) return bodyError;
 
-  const source = body as Record<string, unknown>;
-  const name = typeof source.name === "string" ? source.name.trim() : "";
-  const code = typeof source.code === "string" ? source.code.trim() : "";
-
-  if (!name) {
-    return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
-  }
+  const { name, code } = body;
 
   try {
     const rows = await query<{ id: string; name: string }>(

@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
+import {
+  createCatalogSchema,
+  updatePaymentMethodSchema,
+  type CreateCatalogBody,
+  type UpdatePaymentMethodBody,
+} from "@/lib/schemas/catalogs";
 
 const PG_UNIQUE = "23505";
 
@@ -38,21 +45,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateCatalogBody>(
+    request,
+    createCatalogSchema,
+    "Código (hasta 20) y nombre (hasta 40) requeridos",
+  );
+  if (bodyError) return bodyError;
 
-  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!code || code.length > 20 || !name || name.length > 40) {
-    return NextResponse.json(
-      { error: "Código (hasta 20) y nombre (hasta 40) requeridos" },
-      { status: 400 },
-    );
-  }
+  const { code, name } = body;
 
   try {
     const rows = await query<MethodRow>(
@@ -88,17 +88,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdatePaymentMethodBody>(
+    request,
+    updatePaymentMethodSchema,
+    "Falta el medio de pago",
+  );
+  if (bodyError) return bodyError;
 
   const { id, name, isActive } = body;
-  if (typeof id !== "string") {
-    return NextResponse.json({ error: "Falta el medio de pago" }, { status: 400 });
-  }
 
   try {
     const rows = await query<MethodRow>(
@@ -107,7 +104,7 @@ export async function PATCH(request: Request) {
           is_active = COALESCE($3, is_active)
         WHERE id = $1
         RETURNING id, code, name, is_active, sort_order`,
-      [id, typeof name === "string" && name.trim() ? name.trim() : null, typeof isActive === "boolean" ? isActive : null],
+      [id, name?.trim() || null, isActive ?? null],
     );
     if (rows.length === 0) {
       return NextResponse.json({ error: "Medio de pago inexistente" }, { status: 404 });

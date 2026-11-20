@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
+import { parseBody } from "@/lib/api/body";
 import { getBranchContext } from "@/lib/auth/context";
+import { updateBranchSchema, type UpdateBranchBody } from "@/lib/schemas/catalogs";
 
 async function requireMaster() {
   const context = await getBranchContext();
@@ -28,29 +30,25 @@ export async function PATCH(request: Request, { params }: Params) {
   if (response) return response;
 
   const { id } = await params;
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdateBranchBody>(
+    request,
+    updateBranchSchema,
+    "El nombre es obligatorio",
+  );
+  if (bodyError) return bodyError;
 
   const updates: string[] = ["updated_at = now()", "version = version + 1"];
   const values: unknown[] = [id];
 
-  if (typeof body.name === "string") {
-    const name = body.name.trim();
-    if (!name) {
-      return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
-    }
-    values.push(name);
+  if (body.name !== undefined) {
+    values.push(body.name);
     updates.push(`name = $${values.length}`);
   }
-  if (typeof body.code === "string") {
-    values.push(body.code.trim() || null);
+  if (body.code !== undefined) {
+    values.push(body.code);
     updates.push(`code = $${values.length}`);
   }
-  if (typeof body.isActive === "boolean") {
+  if (body.isActive !== undefined) {
     values.push(body.isActive);
     updates.push(`is_active = $${values.length}`);
   }

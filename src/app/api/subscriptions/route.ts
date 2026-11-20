@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
-import { normalizePlate } from "@/lib/plate";
+import { DATE_RE } from "@/lib/schemas/common";
+import {
+  cancelSubscriptionSchema,
+  createSubscriptionSchema,
+  type CancelSubscriptionPayload,
+  type CreateSubscriptionPayload,
+} from "@/lib/schemas/money";
 
 const TZ = "America/Argentina/Cordoba";
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 interface MonthlyPlan {
   id: string;
@@ -81,19 +87,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Elegí una sucursal" }, { status: 400 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateSubscriptionPayload>(
+    request,
+    createSubscriptionSchema,
+    "Datos del abono inválidos",
+  );
+  if (bodyError) return bodyError;
 
-  const plate = normalizePlate(typeof body.plate === "string" ? body.plate : "");
-  const tariffId = typeof body.tariffId === "string" ? body.tariffId : "";
-  const startsOn = typeof body.startsOn === "string" ? body.startsOn : "";
-  const endsOn = typeof body.endsOn === "string" ? body.endsOn : "";
-  const methodId = typeof body.methodId === "string" ? body.methodId : "";
-  const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
+  const { plate, tariffId, startsOn, endsOn, methodId, notes } = body;
 
   if (!plate) {
     return NextResponse.json({ error: "Patente inválida" }, { status: 400 });
@@ -260,16 +261,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Elegí una sucursal" }, { status: 400 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
-  const id = typeof body.id === "string" ? body.id : "";
-  if (!id) {
-    return NextResponse.json({ error: "Falta el abono" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CancelSubscriptionPayload>(
+    request,
+    cancelSubscriptionSchema,
+    "Falta el abono",
+  );
+  if (bodyError) return bodyError;
+  const { id } = body;
 
   try {
     const rows = await query<{ id: string }>(

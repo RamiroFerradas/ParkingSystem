@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { hasPermission } from "@/lib/auth/permissions";
+import { parseQuery, reportSummaryQuerySchema } from "@/lib/schemas/misc";
 
 /** Reportes de recaudación. Requiere reports.read (supervisor+). */
 
@@ -33,8 +34,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  const url = new URL(request.url);
-  const days = Math.min(Math.max(Number(url.searchParams.get("days") ?? 30), 1), 365);
+  const { days } = parseQuery(request, reportSummaryQuerySchema, { days: 30 });
 
   try {
     const [daily, byMethod, totals] = await Promise.all([

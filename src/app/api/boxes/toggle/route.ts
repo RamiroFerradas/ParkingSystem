@@ -1,24 +1,23 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
+import { parseBody } from "@/lib/api/body";
 import { rpcErrorResponse } from "@/lib/api/guard";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import { toggleBoxServiceSchema, type ToggleBoxServiceBody } from "@/lib/schemas/catalogs";
 
 /** Activar/desactivar box (fuera de servicio). Solo roles con box.manage. */
 export async function POST(request: Request) {
   const { context, error } = await getBranchContextOrFail("box.manage");
   if (error) return NextResponse.json(error.body, { status: error.status });
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<ToggleBoxServiceBody>(
+    request,
+    toggleBoxServiceSchema,
+    "Faltan datos",
+  );
+  if (bodyError) return bodyError;
 
   const { boxId, serviceEnabled } = body;
-  if (typeof boxId !== "string" || typeof serviceEnabled !== "boolean") {
-    return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
-  }
 
   try {
     const rows = await query<{ is_service_enabled: boolean }>(

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { rpcErrorResponse } from "@/lib/api/guard";
+import { parseOptionalBody } from "@/lib/api/body";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import { closeShiftSchema, type CloseShiftPayload } from "@/lib/schemas/operations";
 
 /**
  * Cerrar el turno abierto de la sucursal activa.
@@ -12,13 +14,15 @@ export async function POST(request: Request) {
   const { context, error } = await getBranchContextOrFail("shift.manage");
   if (error) return NextResponse.json(error.body, { status: error.status });
 
-  let notes: string | null = null;
-  try {
-    const body = (await request.json()) as Record<string, unknown>;
-    if (typeof body.notes === "string" && body.notes.length > 0) notes = body.notes;
-  } catch {
-    // cuerpo opcional
-  }
+  const { data: body, error: bodyError } = await parseOptionalBody<CloseShiftPayload>(
+    request,
+    closeShiftSchema,
+    "Datos del turno inválidos",
+  );
+  if (bodyError) return bodyError;
+
+  const notes =
+    typeof body.notes === "string" && body.notes.length > 0 ? body.notes : null;
 
   const open = await query<{ id: string; opened_by: string }>(
     `SELECT id, opened_by FROM cash_shifts

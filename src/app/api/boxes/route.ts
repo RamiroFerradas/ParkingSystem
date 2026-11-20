@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
+import { parseBody } from "@/lib/api/body";
 import { rpcErrorResponse } from "@/lib/api/guard";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import {
+  createBoxSchema,
+  updateBoxSchema,
+  type CreateBoxBody,
+  type UpdateBoxBody,
+} from "@/lib/schemas/catalogs";
 
 const PG_UNIQUE = "23505";
 
@@ -29,22 +36,14 @@ export async function POST(request: Request) {
   const { context, response } = await requireAdmin();
   if (response) return response;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateBoxBody>(
+    request,
+    createBoxSchema,
+    "Necesito el piso y un número de box (hasta 12 caracteres)",
+  );
+  if (bodyError) return bodyError;
 
-  const { floorId, number, sector } = body;
-  const cleanNumber = typeof number === "string" ? number.trim().toUpperCase() : "";
-
-  if (typeof floorId !== "string" || !cleanNumber || cleanNumber.length > 12) {
-    return NextResponse.json(
-      { error: "Necesito el piso y un número de box (hasta 12 caracteres)" },
-      { status: 400 },
-    );
-  }
+  const { floorId, number: cleanNumber, sector } = body;
 
   try {
     // El piso debe pertenecer a la sucursal activa: es lo que evita crear un
@@ -61,12 +60,7 @@ export async function POST(request: Request) {
       `INSERT INTO parking_boxes (number, sector, floor_id, branch_id)
        VALUES ($1, $2, $3, $4)
        RETURNING id, number, sector, floor_id, is_active`,
-      [
-        cleanNumber,
-        typeof sector === "string" && sector.trim() ? sector.trim() : null,
-        floorId,
-        context!.branchId,
-      ],
+      [cleanNumber, sector, floorId, context!.branchId],
     );
 
     await query(
@@ -98,20 +92,17 @@ export async function PATCH(request: Request) {
   const { context, response } = await requireAdmin();
   if (response) return response;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdateBoxBody>(
+    request,
+    updateBoxSchema,
+    "Falta el box",
+  );
+  if (bodyError) return bodyError;
 
   const { id, number, sector, floorId, isActive } = body;
-  if (typeof id !== "string") {
-    return NextResponse.json({ error: "Falta el box" }, { status: 400 });
-  }
 
   const wantsDeactivate = isActive === false;
-  const wantsStructural = typeof number === "string" || typeof floorId === "string";
+  const wantsStructural = number !== undefined || floorId !== undefined;
 
   if (wantsDeactivate || wantsStructural) {
     const current = await query<{ number: string; floor_id: string }>(
@@ -123,8 +114,8 @@ export async function PATCH(request: Request) {
     }
 
     const nextNumber =
-      typeof number === "string" ? number.trim().toUpperCase() : current[0]!.number;
-    const nextFloor = typeof floorId === "string" ? floorId : current[0]!.floor_id;
+      number !== undefined ? number.trim().toUpperCase() : current[0]!.number;
+    const nextFloor = floorId ?? current[0]!.floor_id;
     const movesBox = nextNumber !== current[0]!.number || nextFloor !== current[0]!.floor_id;
 
     if (wantsDeactivate || movesBox) {
@@ -148,7 +139,7 @@ export async function PATCH(request: Request) {
   const updates: string[] = ["updated_at = now()", "version = version + 1"];
   const params: unknown[] = [id, context!.branchId];
 
-  if (typeof number === "string") {
+  if (number !== undefined) {
     const clean = number.trim().toUpperCase();
     if (!clean || clean.length > 12) {
       return NextResponse.json({ error: "Número de box inválido" }, { status: 400 });
@@ -156,15 +147,15 @@ export async function PATCH(request: Request) {
     params.push(clean);
     updates.push(`number = $${params.length}`);
   }
-  if (typeof sector === "string") {
-    params.push(sector.trim() ? sector.trim() : null);
+  if (sector !== undefined) {
+    params.push(sector.trim() || null);
     updates.push(`sector = $${params.length}`);
   }
-  if (typeof floorId === "string") {
+  if (floorId !== undefined) {
     params.push(floorId);
     updates.push(`floor_id = $${params.length}`);
   }
-  if (typeof isActive === "boolean") {
+  if (isActive !== undefined) {
     params.push(isActive);
     updates.push(`is_active = $${params.length}`);
   }

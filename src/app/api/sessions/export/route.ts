@@ -1,6 +1,7 @@
 import { loadHistorialAll, parseHistorialFilters } from "@/lib/queries/historial";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
 import { historialScopeForSession } from "@/lib/auth/scope";
+import { historialExportQuerySchema, parseQuery } from "@/lib/schemas/misc";
 
 const ART_TIME_ZONE = "America/Argentina/Cordoba";
 
@@ -28,9 +29,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Sesión inválida" }, { status: 401 });
   }
 
-  const url = new URL(request.url);
-  const raw = Object.fromEntries(url.searchParams.entries());
-  const filters = parseHistorialFilters(raw);
+  const filters = parseHistorialFilters(parseQuery(request, historialExportQuerySchema, {}));
 
   let rows: Awaited<ReturnType<typeof loadHistorialAll>>;
   try {

@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import {
   hasPermission,
   loadPermissionMatrix,
   loadUserPermissionOverrides,
 } from "@/lib/auth/permissions";
 import { configurableSections } from "@/components/shell/nav-config";
+import {
+  permissionOverridesSchema,
+  type PermissionOverridesPayload,
+} from "@/lib/schemas/users";
 
 interface TargetRow {
   id: string;
@@ -87,11 +92,6 @@ export async function GET(
   }
 }
 
-interface OverrideInput {
-  permission: string;
-  allowed: boolean | null;
-}
-
 /** Evalúa un permiso con las excepciones dadas y la matriz de roles. */
 function effective(
   role: string,
@@ -126,26 +126,18 @@ export async function PUT(
     return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
-
-  const raw = body.overrides;
-  if (!Array.isArray(raw)) {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<PermissionOverridesPayload>(
+    request,
+    permissionOverridesSchema,
+    "Cuerpo inválido",
+  );
+  if (bodyError) return bodyError;
 
   const sections = configurableSections();
   const known = new Set(sections.map((section) => section.permission));
   const requested = new Map<string, boolean | null>();
-  for (const item of raw) {
-    if (typeof item !== "object" || item === null) {
-      return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-    }
-    const { permission, allowed } = item as Partial<OverrideInput>;
+  for (const item of body.overrides) {
+    const { permission, allowed } = item;
     if (typeof permission !== "string" || !known.has(permission)) {
       return NextResponse.json(
         { error: `Permiso inválido: ${String(permission)}` },

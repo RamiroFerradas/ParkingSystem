@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { getBranchContext } from "@/lib/auth/context";
+import { parseBody } from "@/lib/api/body";
+import { switchBranchBodySchema } from "@/lib/schemas/misc";
 import {
   SESSION_COOKIE,
   createSessionToken,
@@ -18,21 +20,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión requerida" }, { status: 401 });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, switchBranchBodySchema, "Sucursal requerida");
+  if (parsed.error) return parsed.error;
 
-  const branchId =
-    typeof (body as Record<string, unknown>)?.branchId === "string"
-      ? ((body as Record<string, unknown>).branchId as string)
-      : "";
-
-  if (!branchId) {
-    return NextResponse.json({ error: "Sucursal requerida" }, { status: 400 });
-  }
+  const { branchId } = parsed.data;
 
   const active = await query<{ id: string }>(
     "SELECT id FROM branches WHERE id = $1 AND is_active = true",
