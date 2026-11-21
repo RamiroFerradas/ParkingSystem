@@ -83,7 +83,7 @@ export default async function TurnoDetallePage({
         <Card label="Facturado" value={formatARS(summary.collected)} tone="green" size="md" />
         <Card label="Cobros" value={summary.paid_count} size="md" />
         <Card label="Autos ingresados" value={summary.entered} size="md" />
-        <Card label="Autos adentro" value={summary.still_open} size="md" />
+        <Card label="Autos adentro (del turno)" value={summary.still_open} size="md" />
       </section>
 
       {Number(shift.closing_open_sessions) > 0 && (

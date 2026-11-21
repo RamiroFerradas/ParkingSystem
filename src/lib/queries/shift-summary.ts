@@ -27,7 +27,7 @@ export async function loadOpenShiftSummary(
             (SELECT COALESCE(SUM(amount_charged_cents), 0)
                FROM payments WHERE shift_id = cs.id)::text AS collected,
             (SELECT count(*) FROM parking_sessions
-              WHERE shift_id = cs.id AND status = 'open')::text AS open_sessions
+              WHERE branch_id = cs.branch_id AND status = 'open')::text AS open_sessions
        FROM cash_shifts cs
        JOIN profiles p ON p.id = cs.opened_by
       WHERE cs.status = 'open' AND cs.branch_id = $1

@@ -47,8 +47,8 @@ export async function POST(request: Request) {
   const pending = await query<{ count: string }>(
     `SELECT count(*)::text AS count
        FROM parking_sessions
-      WHERE shift_id = $1 AND status = 'open'`,
-    [shift.id],
+      WHERE branch_id = $1 AND status = 'open'`,
+    [context.branchId],
   );
   const openSessions = Number(pending[0]?.count ?? 0);
   if (openSessions > 0 && !force) {
@@ -56,10 +56,10 @@ export async function POST(request: Request) {
       `SELECT s.ticket_number::text, v.plate
          FROM parking_sessions s
          JOIN vehicles v ON v.id = s.vehicle_id
-        WHERE s.shift_id = $1 AND s.status = 'open'
+        WHERE s.branch_id = $1 AND s.status = 'open'
         ORDER BY s.ticket_number
         LIMIT 5`,
-      [shift.id],
+      [context.branchId],
     );
     return NextResponse.json(
       {

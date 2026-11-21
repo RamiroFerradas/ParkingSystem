@@ -146,15 +146,26 @@ export default async function TurnosPage() {
               Facturado en el turno:{" "}
               <span className="font-medium tabular-nums">{formatARS(shift.collected)}</span>
               {" · "}
-              Autos adentro: <span className="font-medium tabular-nums">{shift.openSessions}</span>
+              Autos adentro:{" "}
+              <span className="font-medium tabular-nums">{shift.branchOpenSessions}</span>
+              {shift.branchOpenSessions > shift.openSessions && (
+                <span className="text-xs text-amber-300">
+                  {" "}
+                  (incluye {shift.branchOpenSessions - shift.openSessions} de turnos anteriores)
+                </span>
+              )}
             </p>
           </div>
 
-          {shift.openSessions > 0 && (
+          {shift.branchOpenSessions > 0 && (
             <Alert tone="warning">
-              Hay {shift.openSessions} vehículo{shift.openSessions === 1 ? "" : "s"} sin
-              egreso. Podés cerrar el turno igual: seguirán estacionados y sus cobros
-              quedarán en el próximo turno.
+              Hay {shift.branchOpenSessions} vehículo
+              {shift.branchOpenSessions === 1 ? "" : "s"} adentro
+              {shift.branchOpenSessions > shift.openSessions
+                ? ", incluidos los de turnos anteriores"
+                : ""}
+              . Podés cerrar el turno igual: seguirán estacionados y sus cobros quedarán
+              en el próximo turno.
             </Alert>
           )}
 
@@ -176,7 +187,7 @@ export default async function TurnosPage() {
             open={true}
             canClose={canCloseShift}
             openedByName={shift.opened_by}
-            openSessions={shift.openSessions}
+            openSessions={shift.branchOpenSessions}
           />
         </>
       ) : (
