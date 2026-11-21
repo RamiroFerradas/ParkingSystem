@@ -1,9 +1,12 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { test as setup, expect, type Page } from "@playwright/test";
-import accounts from "./support/accounts.json";
-
-const ADMIN = accounts.admin;
-const EMPLOYEE = accounts.employee;
+// Read instead of importing: the repo is ESM, so a JSON import would need an
+// import attribute that the Playwright transform does not preserve.
+const ACCOUNTS = JSON.parse(
+  readFileSync(new URL("./support/accounts.json", import.meta.url), "utf8"),
+) as { admin: { email: string; password: string }; employee: { email: string; password: string } };
+const ADMIN = ACCOUNTS.admin;
+const EMPLOYEE = ACCOUNTS.employee;
 
 const AUTH_DIR = "e2e/.auth";
 
