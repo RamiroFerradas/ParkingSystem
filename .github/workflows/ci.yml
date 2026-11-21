@@ -34,6 +34,8 @@ jobs:
       BASE: http://localhost:3000
       # `tests/db/*` defaults to the `dev` schema and refuses `public`.
       TEST_SCHEMA: dev
+      # Fija la zona del runner: las aserciones de fecha no deben depender de ella.
+      TZ: UTC
 
     steps:
       - uses: actions/checkout@v4
