@@ -3,7 +3,7 @@ import {
   DEFAULT_E2E_SCHEMA,
   assertSafeSchema,
   resolveE2eSchema,
-} from "../../../e2e/support/schema-guard.ts";
+} from "../../../e2e/support/schema-guard.mts";
 
 describe("assertSafeSchema", () => {
   it("accepts a dedicated test schema", () => {

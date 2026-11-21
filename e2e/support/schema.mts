@@ -23,8 +23,8 @@ const ACCOUNTS = JSON.parse(
 );
 const ADMIN = ACCOUNTS.admin;
 const EMPLOYEE = ACCOUNTS.employee;
-import { resolveDatabaseUrl } from "./db-target.ts";
-import { resolveE2eSchema } from "./schema-guard.ts";
+import { resolveDatabaseUrl } from "./db-target.mts";
+import { resolveE2eSchema } from "./schema-guard.mts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MIGRATIONS_DIR = join(ROOT, "db", "migrations");

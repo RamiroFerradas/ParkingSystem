@@ -1,5 +1,5 @@
-import { dropSchema } from "./support/schema.ts";
-import { resolveE2eSchema } from "./support/schema-guard.ts";
+import { dropSchema } from "./support/schema.mts";
+import { resolveE2eSchema } from "./support/schema-guard.mts";
 
 /**
  * Drops the throwaway schema after the run. Skipped when the suite points at an
