@@ -14,10 +14,21 @@ export function assertSafeTestTarget() {
   }
 }
 
+/** Local Postgres (docker/CI) has no TLS; Supabase requires it. */
+function sslFor(connectionString) {
+  try {
+    const host = new URL(connectionString).hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return undefined;
+  } catch {
+    // Unparseable URL: keep the previous behaviour and let pg fail loudly.
+  }
+  return { rejectUnauthorized: false };
+}
+
 function newClient() {
   return new Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: sslFor(process.env.DATABASE_URL),
     // Deliberately no `public` fallback: a missing object must fail loudly
     // instead of silently resolving to the production schema.
     options: `-c search_path=${TEST_SCHEMA}`,
