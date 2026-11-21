@@ -4,6 +4,8 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { Alert } from "@/components/ui/alert";
 import { ShiftActions } from "./shift-actions";
 
 interface ShiftView {
@@ -78,16 +80,7 @@ export default async function TurnosPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "shift.manage"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Requiere permiso de turnos de caja.
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="Requiere permiso de turnos de caja." />;
   }
 
   const shift = await loadShift();
@@ -134,10 +127,10 @@ export default async function TurnosPage() {
           </div>
 
           {shift.openSessions > 0 && (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            <Alert tone="warning">
               Hay {shift.openSessions} vehículo{shift.openSessions === 1 ? "" : "s"} sin egreso.
               Registrá su salida antes de cerrar el turno.
-            </p>
+            </Alert>
           )}
 
           <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">

@@ -4,31 +4,14 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { formatARS } from "@/lib/format";
 import Link from "next/link";
+import { TZ } from "@/lib/reports/period";
+import { currentMonth, monthLabel } from "@/lib/reports/months";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { Card, Td, Th } from "@/components/ui/report-table";
 
-export const TZ = "America/Argentina/Cordoba";
+export { TZ };
 export const PAGE_SIZE = 10;
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-/** Mes actual (YYYY-MM) en la zona horaria del establecimiento. */
-function currentMonth(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(new Date());
-  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  return `${year}-${month}`;
-}
-
-function monthLabel(month: string): string {
-  const [year, monthNumber] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-AR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year ?? 1970, (monthNumber ?? 1) - 1, 1)));
-}
 
 /** Rango [inicio, fin) del mes en UTC sobre `entry_at`. */
 function monthRangeSql(column: string, placeholder: string): string {
@@ -52,16 +35,7 @@ export default async function BoxesReportPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "reports.read"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Requiere permiso de reportes (supervisor o administrador).
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="Requiere permiso de reportes (supervisor o administrador)." />;
   }
 
   const params = await searchParams;
@@ -141,21 +115,21 @@ export default async function BoxesReportPage({
       </header>
 
       <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3">
-        <Card label="Movimientos del mes" value={summary.movements} />
-        <Card label="Boxes con movimiento" value={summary.boxes} />
-        <Card label="Recaudado" value={formatARS(summary.billed)} tone="green" />
+        <Card label="Movimientos del mes" value={summary.movements} size="lg" />
+        <Card label="Boxes con movimiento" value={summary.boxes} size="lg" />
+        <Card label="Recaudado" value={formatARS(summary.billed)} tone="green" size="lg" />
       </section>
 
       <section className="overflow-x-auto rounded-xl border border-neutral-800">
         <table className="w-full text-sm">
           <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
             <tr>
-              <Th>Box</Th>
-              <Th>Sector</Th>
-              <Th right>Movimientos</Th>
-              <Th right>% del mes</Th>
-              <Th right>Recaudado</Th>
-              <Th right>Promedio</Th>
+              <Th padding="wide">Box</Th>
+              <Th padding="wide">Sector</Th>
+              <Th right padding="wide">Movimientos</Th>
+              <Th right padding="wide">% del mes</Th>
+              <Th right padding="wide">Recaudado</Th>
+              <Th right padding="wide">Promedio</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800 bg-neutral-950">
@@ -172,14 +146,14 @@ export default async function BoxesReportPage({
               const average = movements > 0 ? Number(row.billed_cents) / movements : 0;
               return (
                 <tr key={row.box_id}>
-                  <Td mono>{row.box_number}</Td>
-                  <Td>{row.sector}</Td>
-                  <Td right strong>
+                  <Td mono padding="wide">{row.box_number}</Td>
+                  <Td padding="wide">{row.sector}</Td>
+                  <Td right strong padding="wide">
                     {row.movements}
                   </Td>
-                  <Td right>{share.toFixed(1)}%</Td>
-                  <Td right>{formatARS(row.billed_cents)}</Td>
-                  <Td right>{formatARS(average)}</Td>
+                  <Td right padding="wide">{share.toFixed(1)}%</Td>
+                  <Td right padding="wide">{formatARS(row.billed_cents)}</Td>
+                  <Td right padding="wide">{formatARS(average)}</Td>
                 </tr>
               );
             })}
@@ -226,46 +200,5 @@ export default async function BoxesReportPage({
         </div>
       </nav>
     </div>
-  );
-}
-
-function Card({ label, value, tone = "neutral" }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p
-        className={`mt-1 text-2xl font-semibold tabular-nums ${
-          tone === "green" ? "text-emerald-400" : "text-neutral-100"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return <th className={`px-4 py-2 font-medium ${right ? "text-right" : ""}`}>{children}</th>;
-}
-
-function Td({
-  children,
-  right,
-  strong,
-  mono,
-}: {
-  children: React.ReactNode;
-  right?: boolean;
-  strong?: boolean;
-  mono?: boolean;
-}) {
-  return (
-    <td
-      className={`px-4 py-2.5 ${right ? "text-right tabular-nums" : ""} ${
-        strong ? "font-medium text-neutral-100" : "text-neutral-300"
-      } ${mono ? "font-mono text-xs" : ""}`}
-    >
-      {children}
-    </td>
   );
 }

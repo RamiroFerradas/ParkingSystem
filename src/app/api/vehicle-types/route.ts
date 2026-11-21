@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
+import {
+  createVehicleTypeSchema,
+  updateVehicleTypeSchema,
+  type CreateVehicleTypeBody,
+  type UpdateVehicleTypeBody,
+} from "@/lib/schemas/catalogs";
 
 const PG_UNIQUE = "23505";
 
@@ -39,35 +46,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateVehicleTypeBody>(
+    request,
+    createVehicleTypeSchema,
+    "Nombre requerido (hasta 40 caracteres)",
+  );
+  if (bodyError) return bodyError;
 
-  // El código es interno (seeds y tests); la UI ya no lo pide. Si no viene,
-  // se deriva del nombre para mantener la unicidad del catálogo.
-  const requestedCode = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const sortOrder = typeof body.sortOrder === "number" ? Math.floor(body.sortOrder) : 0;
+  const { code, name, sortOrder } = body;
 
-  const code =
-    requestedCode ||
-    name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .toUpperCase()
-      .slice(0, 20);
-
-  if (!name || name.length > 40) {
-    return NextResponse.json(
-      { error: "Nombre requerido (hasta 40 caracteres)" },
-      { status: 400 },
-    );
-  }
   // El código explícito no se recorta: si el caller lo manda, se valida tal cual.
   if (!code || code.length > 20) {
     return NextResponse.json(
@@ -110,17 +97,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdateVehicleTypeBody>(
+    request,
+    updateVehicleTypeSchema,
+    "Falta el tipo",
+  );
+  if (bodyError) return bodyError;
 
   const { id, name, sortOrder, isActive } = body;
-  if (typeof id !== "string") {
-    return NextResponse.json({ error: "Falta el tipo" }, { status: 400 });
-  }
 
   try {
     // Un tipo en uso no se desactiva: las estadías históricas lo referencian.
@@ -146,9 +130,9 @@ export async function PATCH(request: Request) {
         RETURNING id, code, name, is_active, sort_order`,
       [
         id,
-        typeof name === "string" ? name.trim() : null,
-        typeof sortOrder === "number" ? Math.floor(sortOrder) : null,
-        typeof isActive === "boolean" ? isActive : null,
+        name?.trim() ?? null,
+        sortOrder === undefined ? null : Math.floor(sortOrder),
+        isActive ?? null,
       ],
     );
     if (rows.length === 0) {

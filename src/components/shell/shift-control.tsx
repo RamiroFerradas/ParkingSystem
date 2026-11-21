@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { LinkPendingContent } from "./link-pending";
 import {
   LONG_SHIFT_MINUTES,
@@ -11,6 +10,7 @@ import {
 } from "@/lib/shifts/format";
 import type { OpenShiftSummary } from "@/lib/shifts/types";
 import { useToast } from "./toast";
+import { useShiftMutation } from "./use-shift-mutation";
 
 /**
  * Estado del turno en el header. El chip es la puerta al detalle y al cierre;
@@ -18,12 +18,10 @@ import { useToast } from "./toast";
  * ser la acción principal. Sin turno, abrir es la acción principal.
  */
 export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
-  const router = useRouter();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [isRefreshing, startRefresh] = useTransition();
+  const { run, pending, busy } = useShiftMutation();
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number | null>(null);
 
@@ -48,57 +46,26 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
       ? Math.max(0, Math.floor((nowMs - shift.openedAtMs) / 60_000))
       : (shift?.elapsedMinutes ?? 0);
   const overdue = elapsedMinutes >= LONG_SHIFT_MINUTES;
-  const busy = pending || isRefreshing;
 
   async function openShift() {
     setError(null);
-    setPending(true);
-    try {
-      const res = await fetch("/api/shifts/open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) {
-        toast(data?.error ?? "No se pudo abrir el turno", "error");
-        startRefresh(() => router.refresh());
-        return;
-      }
-      toast("Turno abierto");
-      startRefresh(() => router.refresh());
-    } catch {
-      toast("Servidor no disponible", "error");
-    } finally {
-      setPending(false);
-    }
+    await run("/api/shifts/open", "No se pudo abrir el turno", {
+      onSuccess: () => toast("Turno abierto"),
+      onError: (message) => toast(message, "error"),
+    });
   }
 
   async function closeShift() {
     if (!shift) return;
     setError(null);
-    setPending(true);
-    try {
-      const res = await fetch("/api/shifts/close", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) {
-        setError(data?.error ?? "No se pudo cerrar el turno");
-        startRefresh(() => router.refresh());
-        return;
-      }
-      setOpen(false);
-      setConfirming(false);
-      toast(`Turno cerrado · Facturado ${shift.collectedLabel}`);
-      startRefresh(() => router.refresh());
-    } catch {
-      setError("Servidor no disponible");
-    } finally {
-      setPending(false);
-    }
+    await run("/api/shifts/close", "No se pudo cerrar el turno", {
+      onSuccess: () => {
+        setOpen(false);
+        setConfirming(false);
+        toast(`Turno cerrado · Facturado ${shift.collectedLabel}`);
+      },
+      onError: setError,
+    });
   }
 
   function closePanel() {

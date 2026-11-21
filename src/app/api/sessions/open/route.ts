@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { getBranchContextOrFail } from "@/lib/auth/context";
 import { normalizePlate } from "@/lib/plate";
+import { openSessionSchema, type OpenSessionPayload } from "@/lib/schemas/operations";
 
 interface OpenResult {
   session_id: string;
@@ -77,25 +79,14 @@ export async function POST(request: Request) {
   const user = context.user;
   const branchId = context.branchId;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<OpenSessionPayload>(
+    request,
+    openSessionSchema,
+    "Faltan datos del ingreso",
+  );
+  if (bodyError) return bodyError;
 
   const { sessionId, plate, vehicleTypeId, boxId, notes, keyLeft, damageNotes } = body;
-  if (
-    typeof sessionId !== "string" ||
-    typeof plate !== "string" ||
-    typeof vehicleTypeId !== "string" ||
-    typeof boxId !== "string"
-  ) {
-    return NextResponse.json(
-      { error: "Faltan datos del ingreso" },
-      { status: 400 },
-    );
-  }
 
   const cleanPlate = normalizePlate(plate);
   if (!cleanPlate) {

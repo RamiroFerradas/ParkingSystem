@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { cx } from "@/lib/ui-classes";
 import { BoxTile, type BoardBox } from "./BoxTile";
 import { BoxEditPanel } from "./BoxEditPanel";
 
@@ -120,12 +121,12 @@ export function BoxMapBoard({
             type="button"
             onClick={() => setFloorId("all")}
             aria-pressed={floorId === "all"}
-            className={
-              "min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium " +
-              (floorId === "all"
+            className={cx(
+              "min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium",
+              floorId === "all"
                 ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
-                : "border-neutral-700 text-neutral-300")
-            }
+                : "border-neutral-700 text-neutral-300",
+            )}
           >
             Todos
           </button>
@@ -135,12 +136,12 @@ export function BoxMapBoard({
               type="button"
               onClick={() => setFloorId(floor.id)}
               aria-pressed={floorId === floor.id}
-              className={
-                "min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium " +
-                (floorId === floor.id
+              className={cx(
+                "min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium",
+                floorId === floor.id
                   ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
-                  : "border-neutral-700 text-neutral-300")
-              }
+                  : "border-neutral-700 text-neutral-300",
+              )}
             >
               {floor.name}
             </button>

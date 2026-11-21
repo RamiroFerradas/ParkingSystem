@@ -3,20 +3,14 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { formatDate, formatTime } from "@/lib/format";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 export default async function SincronizacionPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "sync.manage"))) {
     return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Solo el administrador puede ver el estado de sincronización.
-          </p>
-        </div>
-      </div>
+      <AccessDenied message="Solo el administrador puede ver el estado de sincronización." />
     );
   }
 

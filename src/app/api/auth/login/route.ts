@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { verify } from "@node-rs/argon2";
 import { query } from "@/lib/db/client";
+import { parseBody } from "@/lib/api/body";
+import { loginBodySchema } from "@/lib/schemas/misc";
 import {
   SESSION_COOKIE,
   createSessionToken,
@@ -20,21 +22,12 @@ interface LoginRow {
 const GENERIC_ERROR = "Credenciales inválidas";
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
+  const { data } = await parseBody(request, loginBodySchema, GENERIC_ERROR);
+  if (!data) {
     return NextResponse.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
-  const email =
-    typeof (body as Record<string, unknown>)?.email === "string"
-      ? ((body as Record<string, unknown>).email as string).trim().toLowerCase()
-      : "";
-  const password =
-    typeof (body as Record<string, unknown>)?.password === "string"
-      ? ((body as Record<string, unknown>).password as string)
-      : "";
+  const { email, password } = data;
 
   if (!email || !password) {
     return NextResponse.json({ error: GENERIC_ERROR }, { status: 400 });

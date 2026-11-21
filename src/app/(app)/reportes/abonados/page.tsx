@@ -4,15 +4,15 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { formatARS } from "@/lib/format";
 import Link from "next/link";
-import {
-  StackedMonthBars,
-  type StackedMonthPoint,
-} from "@/components/charts/report-charts";
+import { StackedMonthBars, type StackedMonthPoint } from "@/components/charts/report-charts";
+import { lastTwelveMonths } from "@/lib/reports/months";
+import { TZ } from "@/lib/reports/period";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { Card, Empty, TableSection, Td, Th } from "@/components/ui/report-table";
 
 // La página consulta la DB en el servidor con datos que cambian por request.
 export const instant = false;
 
-const TZ = "America/Argentina/Cordoba";
 const EXPIRING_DAYS = 30;
 
 interface SubscriptionRow {
@@ -31,43 +31,11 @@ function showDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
-/** Los últimos 12 meses (incluido el actual), en la zona del establecimiento. */
-function lastTwelveMonths(): { month: string; label: string }[] {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(new Date());
-  const year = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
-  const month = Number(parts.find((p) => p.type === "month")?.value ?? "1");
-  return Array.from({ length: 12 }, (_, index) => {
-    const date = new Date(Date.UTC(year, month - 1 - (11 - index), 1));
-    const y = date.getUTCFullYear();
-    const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-    const short = new Intl.DateTimeFormat("es-AR", {
-      month: "short",
-      timeZone: "UTC",
-    })
-      .format(date)
-      .replace(".", "");
-    return { month: `${y}-${m}`, label: `${short} ${String(y).slice(2)}` };
-  });
-}
-
 export default async function AbonadosReportPage() {
   const context = await getBranchContext();
   if (!context) redirect("/login");
   if (!(await hasPermission(context.user, "reports.read"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Requiere permiso de reportes (supervisor o administrador).
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="Requiere permiso de reportes (supervisor o administrador)." />;
   }
   if (!context.branchId) {
     return (
@@ -155,10 +123,25 @@ export default async function AbonadosReportPage() {
       </header>
 
       <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-        <Card label="Activos hoy" value={String(activeCount)} />
-        <Card label="Ingreso recurrente mensual" value={formatARS(recurringCents)} tone="green" />
-        <Card label="Cobrado por abonos (12 meses)" value={formatARS(collectedCents)} tone="green" />
-        <Card label={`Vencen en ${EXPIRING_DAYS} días`} value={String(expiring.length)} tone="amber" />
+        <Card label="Activos hoy" value={String(activeCount)} size="lg" />
+        <Card
+          label="Ingreso recurrente mensual"
+          value={formatARS(recurringCents)}
+          tone="green"
+          size="lg"
+        />
+        <Card
+          label="Cobrado por abonos (12 meses)"
+          value={formatARS(collectedCents)}
+          tone="green"
+          size="lg"
+        />
+        <Card
+          label={`Vencen en ${EXPIRING_DAYS} días`}
+          value={String(expiring.length)}
+          tone="amber"
+          size="lg"
+        />
       </section>
 
       <section className="rounded-xl border border-neutral-800">
@@ -179,24 +162,24 @@ export default async function AbonadosReportPage() {
       <TableSection title="Abonados vigentes">
         <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
           <tr>
-            <Th>Patente</Th>
-            <Th>Tipo</Th>
-            <Th>Plan</Th>
-            <Th>Desde</Th>
-            <Th>Hasta</Th>
-            <Th right>Monto</Th>
+            <Th padding="wide">Patente</Th>
+            <Th padding="wide">Tipo</Th>
+            <Th padding="wide">Plan</Th>
+            <Th padding="wide">Desde</Th>
+            <Th padding="wide">Hasta</Th>
+            <Th right padding="wide">Monto</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800 bg-neutral-950">
           {subscriptions.length === 0 && <Empty cols={6}>Sin abonados vigentes.</Empty>}
           {subscriptions.map((row) => (
             <tr key={`${row.plate}-${row.starts_on}`}>
-              <Td mono>{row.plate}</Td>
-              <Td>{row.vehicle_type}</Td>
-              <Td>{row.plan}</Td>
-              <Td>{showDate(row.starts_on)}</Td>
-              <Td>{showDate(row.ends_on)}</Td>
-              <Td right strong>{formatARS(row.amount_cents)}</Td>
+              <Td mono padding="wide">{row.plate}</Td>
+              <Td padding="wide">{row.vehicle_type}</Td>
+              <Td padding="wide">{row.plan}</Td>
+              <Td padding="wide">{showDate(row.starts_on)}</Td>
+              <Td padding="wide">{showDate(row.ends_on)}</Td>
+              <Td right strong padding="wide">{formatARS(row.amount_cents)}</Td>
             </tr>
           ))}
         </tbody>
@@ -205,10 +188,10 @@ export default async function AbonadosReportPage() {
       <TableSection title={`Próximos vencimientos (${EXPIRING_DAYS} días)`}>
         <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
           <tr>
-            <Th>Patente</Th>
-            <Th>Plan</Th>
-            <Th>Hasta</Th>
-            <Th right>Monto</Th>
+            <Th padding="wide">Patente</Th>
+            <Th padding="wide">Plan</Th>
+            <Th padding="wide">Hasta</Th>
+            <Th right padding="wide">Monto</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800 bg-neutral-950">
@@ -217,10 +200,10 @@ export default async function AbonadosReportPage() {
           )}
           {expiring.map((row) => (
             <tr key={`${row.plate}-${row.ends_on}`}>
-              <Td mono>{row.plate}</Td>
-              <Td>{row.plan}</Td>
-              <Td>{showDate(row.ends_on)}</Td>
-              <Td right strong>{formatARS(row.amount_cents)}</Td>
+              <Td mono padding="wide">{row.plate}</Td>
+              <Td padding="wide">{row.plan}</Td>
+              <Td padding="wide">{showDate(row.ends_on)}</Td>
+              <Td right strong padding="wide">{formatARS(row.amount_cents)}</Td>
             </tr>
           ))}
         </tbody>
@@ -234,65 +217,5 @@ export default async function AbonadosReportPage() {
         .
       </p>
     </div>
-  );
-}
-
-function Card({ label, value, tone = "neutral" }: { label: string; value: string; tone?: string }) {
-  const color =
-    tone === "green"
-      ? "text-emerald-400"
-      : tone === "amber"
-        ? "text-amber-400"
-        : "text-neutral-100";
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
-    </div>
-  );
-}
-
-function TableSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="overflow-x-auto rounded-xl border border-neutral-800">
-      <h2 className="bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-300">{title}</h2>
-      <table className="w-full text-sm">{children}</table>
-    </section>
-  );
-}
-
-function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return <th className={`px-4 py-2 font-medium ${right ? "text-right" : ""}`}>{children}</th>;
-}
-
-function Td({
-  children,
-  right,
-  strong,
-  mono,
-}: {
-  children: React.ReactNode;
-  right?: boolean;
-  strong?: boolean;
-  mono?: boolean;
-}) {
-  return (
-    <td
-      className={`px-4 py-2.5 ${right ? "text-right tabular-nums" : ""} ${
-        strong ? "font-medium text-neutral-100" : "text-neutral-300"
-      } ${mono ? "font-mono text-xs" : ""}`}
-    >
-      {children}
-    </td>
-  );
-}
-
-function Empty({ cols, children }: { cols: number; children: React.ReactNode }) {
-  return (
-    <tr>
-      <td colSpan={cols} className="px-4 py-4 text-center text-neutral-500">
-        {children}
-      </td>
-    </tr>
   );
 }

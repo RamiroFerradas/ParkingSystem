@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "@/lib/db/client";
+import { parseBody } from "@/lib/api/body";
 import { rpcErrorResponse } from "@/lib/api/guard";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import {
+  createFloorSchema,
+  updateFloorSchema,
+  type CreateFloorBody,
+  type UpdateFloorBody,
+} from "@/lib/schemas/catalogs";
 
 const PG_UNIQUE = "23505";
 
@@ -28,21 +35,15 @@ export async function POST(request: Request) {
   const { context, response } = await requireAdmin();
   if (response) return response;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateFloorBody>(
+    request,
+    createFloorSchema,
+    "Nombre de piso inválido",
+  );
+  if (bodyError) return bodyError;
 
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const boxCount = typeof body.boxCount === "number" ? Math.floor(body.boxCount) : 0;
-  const prefix = typeof body.prefix === "string" ? body.prefix.trim().toUpperCase() : "";
-  const sortOrder = typeof body.sortOrder === "number" ? Math.floor(body.sortOrder) : 0;
+  const { name, boxCount, prefix, sortOrder } = body;
 
-  if (!name || name.length > 50) {
-    return NextResponse.json({ error: "Nombre de piso inválido" }, { status: 400 });
-  }
   if (boxCount < 0 || boxCount > 120) {
     return NextResponse.json({ error: "Cantidad de boxes fuera de rango (0–120)" }, { status: 400 });
   }
@@ -114,33 +115,30 @@ export async function PATCH(request: Request) {
   const { context, response } = await requireAdmin();
   if (response) return response;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdateFloorBody>(
+    request,
+    updateFloorSchema,
+    "Falta el piso",
+  );
+  if (bodyError) return bodyError;
 
   const { id, name, sortOrder, isActive } = body;
-  if (typeof id !== "string") {
-    return NextResponse.json({ error: "Falta el piso" }, { status: 400 });
-  }
 
   const updates: string[] = ["updated_at = now()", "version = version + 1"];
   const params: unknown[] = [id, context!.branchId];
 
-  if (typeof name === "string") {
+  if (name !== undefined) {
     if (!name.trim() || name.trim().length > 50) {
       return NextResponse.json({ error: "Nombre de piso inválido" }, { status: 400 });
     }
     params.push(name.trim());
     updates.push(`name = $${params.length}`);
   }
-  if (typeof sortOrder === "number") {
+  if (sortOrder !== undefined) {
     params.push(Math.floor(sortOrder));
     updates.push(`sort_order = $${params.length}`);
   }
-  if (typeof isActive === "boolean") {
+  if (isActive !== undefined) {
     params.push(isActive);
     updates.push(`is_active = $${params.length}`);
   }

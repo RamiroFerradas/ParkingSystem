@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { formatDate, formatTime } from "@/lib/format";
+import { Alert } from "@/components/ui/alert";
+import { inputClsFull } from "@/lib/ui-classes";
 
 interface VehicleRow {
   id: string;
@@ -51,17 +53,13 @@ export function VehiclesList() {
       </header>
 
       <input
-        className="w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500"
+        className={inputClsFull}
         placeholder="Buscar patente…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
 
-      {error && (
-        <p className="rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <Alert>{error}</Alert>}
 
       {rows && rows.length === 0 && (
         <p className="rounded-md border border-neutral-800 bg-neutral-900 px-4 py-6 text-center text-sm text-neutral-500">

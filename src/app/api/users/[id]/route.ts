@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
+import { isRole, updateUserSchema, type UpdateUserPayload } from "@/lib/schemas/users";
 import { hash } from "@node-rs/argon2";
-
-const ROLES = ["admin", "supervisor", "employee"] as const;
 
 interface TargetRow {
   id: string;
@@ -28,12 +28,12 @@ export async function PATCH(
 
   const { id } = await params;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdateUserPayload>(
+    request,
+    updateUserSchema,
+    "Datos del usuario inválidos",
+  );
+  if (bodyError) return bodyError;
 
   const { isActive, role, password } = body;
 
@@ -43,7 +43,7 @@ export async function PATCH(
       { status: 400 },
     );
   }
-  if (role !== undefined && !ROLES.includes(role as (typeof ROLES)[number])) {
+  if (role !== undefined && !isRole(role)) {
     return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
   }
 

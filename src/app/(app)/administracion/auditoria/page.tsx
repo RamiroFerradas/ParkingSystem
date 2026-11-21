@@ -3,6 +3,8 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { formatDate, formatTime } from "@/lib/format";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { inputCls } from "@/lib/ui-classes";
 
 export default async function AuditoriaPage({
   searchParams,
@@ -12,16 +14,7 @@ export default async function AuditoriaPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "audit.read"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Solo el administrador puede consultar la auditoría.
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="Solo el administrador puede consultar la auditoría." />;
   }
 
   const params = await searchParams;
@@ -63,13 +56,13 @@ export default async function AuditoriaPage({
           name="action"
           defaultValue={action ?? ""}
           placeholder="Filtrar por acción (ej. tariff.)"
-          className="rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500"
+          className={inputCls}
         />
         <input
           name="entityType"
           defaultValue={entityType ?? ""}
           placeholder="Entidad (ej. parking_tariff)"
-          className="rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500"
+          className={inputCls}
         />
         <button className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800">
           Filtrar

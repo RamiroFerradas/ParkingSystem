@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Alert } from "@/components/ui/alert";
+import { btnCls } from "@/lib/ui-classes";
 
 type Mode = "inherit" | "allow" | "deny";
 
@@ -19,8 +21,6 @@ const modeOf = (override: boolean | null): Mode =>
 
 const inputCls =
   "rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-100 outline-none focus:border-neutral-500";
-const btnCls =
-  "rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-40";
 
 /**
  * Editor de accesos por usuario. El rol da el valor heredado; acá el
@@ -127,9 +127,7 @@ export function PermissionsEditor({
       </header>
 
       {error && (
-        <p className="mt-3 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
-          {error}
-        </p>
+        <Alert className="mt-3">{error}</Alert>
       )}
 
       {!rows && !error && (

@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
+import {
+  createPrintJobSchema,
+  updatePrintJobSchema,
+  type CreatePrintJobPayload,
+  type UpdatePrintJobPayload,
+} from "@/lib/schemas/operations";
 
 /**
  * Cola de impresión térmica (print_jobs).
@@ -54,17 +61,14 @@ export async function POST(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreatePrintJobPayload>(
+    request,
+    createPrintJobSchema,
+    "Datos de impresión inválidos",
+  );
+  if (bodyError) return bodyError;
 
   const { sessionId, kind } = body;
-  if (typeof sessionId !== "string" || (kind !== "entry" && kind !== "reprint")) {
-    return NextResponse.json({ error: "Datos de impresión inválidos" }, { status: 400 });
-  }
 
   try {
     // B1: la sucursal se resuelve desde la estadía, no desde el body. Un job
@@ -102,17 +106,14 @@ export async function PATCH(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdatePrintJobPayload>(
+    request,
+    updatePrintJobSchema,
+    "Estado de impresión inválido",
+  );
+  if (bodyError) return bodyError;
 
   const { id, status, lastError } = body;
-  if (typeof id !== "string" || (status !== "printed" && status !== "error" && status !== "pending")) {
-    return NextResponse.json({ error: "Estado de impresión inválido" }, { status: 400 });
-  }
 
   try {
     const rows = await query<{ id: string }>(

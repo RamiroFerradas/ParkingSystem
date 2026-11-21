@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { formatDate, formatTime } from "@/lib/format";
+import { btnCls, inputCls } from "@/lib/ui-classes";
+import { Alert } from "@/components/ui/alert";
 
 export interface SpecialView {
   id: string;
@@ -19,11 +21,6 @@ interface VehicleTypeOpt {
   id: string;
   name: string;
 }
-
-const inputCls =
-  "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500";
-const btnCls =
-  "rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-40";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Programado",
@@ -122,11 +119,7 @@ export function SpecialsManager({
         </p>
       </header>
 
-      {error && (
-        <p className="rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <Alert>{error}</Alert>}
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
         <h2 className="text-sm font-medium text-neutral-300">Nuevo período</h2>

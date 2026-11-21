@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatARS, formatDate, formatElapsed, formatTime } from "@/lib/format";
 import { PERIODS, resolvePeriod } from "@/lib/reports/period";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { Card, Td, Th } from "@/components/ui/report-table";
 
 interface ShiftRow {
   id: string;
@@ -27,16 +29,7 @@ export default async function TurnosReportPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await hasPermission(user, "reports.read"))) {
-    return (
-      <div className="mx-auto max-w-lg">
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
-          <p className="text-sm font-medium text-amber-400">Acceso restringido</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            Requiere permiso de reportes (supervisor o administrador).
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied message="Requiere permiso de reportes (supervisor o administrador)." />;
   }
 
   const params = await searchParams;
@@ -105,24 +98,24 @@ export default async function TurnosReportPage({
       </header>
 
       <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-        <Card label="Turnos" value={String(rows.length)} />
-        <Card label="Facturado" value={formatARS(totals.collected)} tone="green" />
-        <Card label="Autos ingresados" value={String(totals.entries)} />
-        <Card label="Cobros" value={String(totals.payments)} />
+        <Card label="Turnos" value={String(rows.length)} size="md" />
+        <Card label="Facturado" value={formatARS(totals.collected)} tone="green" size="md" />
+        <Card label="Autos ingresados" value={String(totals.entries)} size="md" />
+        <Card label="Cobros" value={String(totals.payments)} size="md" />
       </section>
 
       <div className="overflow-x-auto rounded-lg border border-neutral-800">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-neutral-900 text-left text-xs text-neutral-500">
             <tr>
-              <Th>Turno</Th>
-              <Th>Abrió</Th>
-              <Th>Cerró</Th>
-              <Th right>Duración</Th>
-              <Th right>Autos</Th>
-              <Th right>Cobros</Th>
-              <Th right>Facturado</Th>
-              <Th right> </Th>
+              <Th padding="compact" className="text-left">Turno</Th>
+              <Th padding="compact" className="text-left">Abrió</Th>
+              <Th padding="compact" className="text-left">Cerró</Th>
+              <Th right padding="compact">Duración</Th>
+              <Th right padding="compact">Autos</Th>
+              <Th right padding="compact">Cobros</Th>
+              <Th right padding="compact">Facturado</Th>
+              <Th right padding="compact"> </Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800 bg-neutral-950">
@@ -135,7 +128,7 @@ export default async function TurnosReportPage({
             )}
             {rows.map((r) => (
               <tr key={r.id} className="hover:bg-neutral-900/60">
-                <td className="px-3 py-2">
+                <Td padding="compact" tone="inherit">
                   <span className="tabular-nums">
                     {formatDate(r.opened_at)} {formatTime(r.opened_at)}
                   </span>
@@ -149,32 +142,32 @@ export default async function TurnosReportPage({
                   >
                     {r.status === "open" ? "Abierto" : "Cerrado"}
                   </span>
-                </td>
-                <td className="px-3 py-2">{r.opened_by_name}</td>
-                <td className="px-3 py-2">
+                </Td>
+                <Td padding="compact" tone="inherit">{r.opened_by_name}</Td>
+                <Td padding="compact" tone="inherit">
                   {r.closed_by_name ?? "—"}
                   {r.closed_at && (
                     <span className="ml-1 text-xs text-neutral-500">
                       {formatTime(r.closed_at)}
                     </span>
                   )}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                </Td>
+                <Td right padding="compact" tone="inherit">
                   {formatElapsed(Number(r.minutes))}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{r.entered}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{r.paid_count}</td>
-                <td className="px-3 py-2 text-right font-medium tabular-nums">
+                </Td>
+                <Td right padding="compact" tone="inherit">{r.entered}</Td>
+                <Td right padding="compact" tone="inherit">{r.paid_count}</Td>
+                <Td right strong padding="compact" tone="inherit">
                   {formatARS(r.collected)}
-                </td>
-                <td className="px-3 py-2 text-right">
+                </Td>
+                <Td right padding="compact" tone="inherit">
                   <Link
                     href={`/reportes/turnos/${r.id}`}
                     className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
                   >
                     Ver detalle
                   </Link>
-                </td>
+                </Td>
               </tr>
             ))}
           </tbody>
@@ -185,37 +178,5 @@ export default async function TurnosReportPage({
         los ingresos con ese turno asignado.
       </p>
     </div>
-  );
-}
-
-function Card({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "green";
-}) {
-  return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p
-        className={
-          "mt-1 text-lg font-semibold tabular-nums " +
-          (tone === "green" ? "text-emerald-400" : "text-neutral-100")
-        }
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return (
-    <th className={"px-3 py-2 font-medium " + (right ? "text-right" : "text-left")}>
-      {children}
-    </th>
   );
 }

@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { hasPermission } from "@/lib/auth/permissions";
+import {
+  createTariffSchema,
+  updateTariffSchema,
+  type CreateTariffPayload,
+  type UpdateTariffPayload,
+} from "@/lib/schemas/money";
 
 const PG_UNIQUE = "23505";
 
@@ -86,12 +93,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CreateTariffPayload>(
+    request,
+    createTariffSchema,
+    "Datos de tarifa inválidos",
+  );
+  if (bodyError) return bodyError;
 
   const branchId = branchOf(user);
   if (!branchId) {
@@ -100,15 +107,9 @@ export async function POST(request: Request) {
 
   // `code` y `name` se aceptan por compatibilidad con clientes viejos; la UI
   // nueva ya no los pide y el nombre se autogenera desde el tipo y la duración.
-  const code = typeof body.code === "string" && body.code.trim() ? body.code.trim() : null;
-  const requestedName = typeof body.name === "string" ? body.name.trim() : "";
-  const description =
-    typeof body.description === "string" && body.description.trim() ? body.description.trim() : null;
-  const vehicleTypeId = typeof body.vehicleTypeId === "string" ? body.vehicleTypeId : "";
-  const kind = body.kind === "monthly" ? "monthly" : "hourly";
+  const { code, name: requestedName, description, vehicleTypeId, kind, durationMinutes, amountCents } =
+    body;
   const isMonthly = kind === "monthly";
-  const durationMinutes = Number(body.durationMinutes);
-  const amountCents = Number(body.amountCents);
 
   const parsedFrom = parseDate(body.validFrom);
   const parsedTo = parseDate(body.validTo);
@@ -212,25 +213,22 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<UpdateTariffPayload>(
+    request,
+    updateTariffSchema,
+    "Falta la tarifa",
+  );
+  if (bodyError) return bodyError;
 
-  const { id, amountCents, isActive } = body;
-  if (typeof id !== "string") {
-    return NextResponse.json({ error: "Falta la tarifa" }, { status: 400 });
-  }
-  if (amountCents !== undefined && (!Number.isInteger(Number(amountCents)) || Number(amountCents) < 0)) {
+  const { id, amountCents, isActive, validFrom, validTo } = body;
+  if (amountCents !== undefined && (!Number.isInteger(amountCents) || amountCents < 0)) {
     return NextResponse.json({ error: "Monto inválido (centavos)" }, { status: 400 });
   }
 
-  const hasFrom = body.validFrom !== undefined;
-  const hasTo = body.validTo !== undefined;
-  const parsedFrom = parseDate(body.validFrom);
-  const parsedTo = parseDate(body.validTo);
+  const hasFrom = validFrom !== undefined;
+  const hasTo = validTo !== undefined;
+  const parsedFrom = parseDate(validFrom);
+  const parsedTo = parseDate(validTo);
   if (parsedFrom === INVALID || parsedFrom === null) {
     return NextResponse.json({ error: "Fecha de inicio inválida" }, { status: 400 });
   }

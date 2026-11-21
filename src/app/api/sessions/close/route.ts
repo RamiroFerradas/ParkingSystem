@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import { closeSessionSchema, type CloseSessionPayload } from "@/lib/schemas/operations";
 
 interface CloseResult {
   session_id: string;
@@ -15,20 +17,14 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json(error.body, { status: error.status });
   const user = context.user;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<CloseSessionPayload>(
+    request,
+    closeSessionSchema,
+    "Faltan datos del cobro",
+  );
+  if (bodyError) return bodyError;
 
   const { sessionId, methodId, notes } = body;
-  if (typeof sessionId !== "string" || typeof methodId !== "string") {
-    return NextResponse.json(
-      { error: "Faltan datos del cobro" },
-      { status: 400 },
-    );
-  }
 
   // Un egreso solo puede tocar una estadía de la sucursal activa.
   const owned = await query<{ id: string }>(

@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
 import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { normalizePlate } from "@/lib/plate";
+import { parseQuery, vehicleLookupQuerySchema } from "@/lib/schemas/misc";
 
 /** Búsqueda de vehículo por patente (alta rápida D1: reutilizar registro). */
 export async function GET(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
 
-  const plate = new URL(request.url).searchParams.get("plate") ?? "";
-  const normalized = normalizePlate(plate);
+  const { plate: normalized } = parseQuery(request, vehicleLookupQuerySchema, { plate: "" });
   if (!normalized) {
     return NextResponse.json({ found: false });
   }

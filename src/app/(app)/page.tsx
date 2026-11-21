@@ -1,10 +1,14 @@
-import Link from "next/link";
 import { Suspense } from "react";
-import { query } from "@/lib/db/client";
-import { formatARS, formatElapsed } from "@/lib/format";
-import { getBranchContext } from "@/lib/auth/context";
-import { loadOpenShiftSummary } from "@/lib/queries/shift-summary";
-import { MiniBoxMap } from "@/components/boxes/mini-box-map";
+import { QuickActionsSection } from "./_components/dashboard/quick-actions";
+import { MiniBoxMapSection } from "./_components/dashboard/mini-box-map-section";
+import { OccupancyCardsSection } from "./_components/dashboard/occupancy-cards";
+import { ShiftCardSection } from "./_components/dashboard/shift-card";
+import { SubscriptionsCardSection } from "./_components/dashboard/subscriptions-card";
+import { TodayCardsSection } from "./_components/dashboard/today-cards";
+import { YesterdayCardsSection } from "./_components/dashboard/yesterday-cards";
+import { MethodsTodaySection } from "./_components/dashboard/methods-today";
+import { PendingPrintsSection } from "./_components/dashboard/pending-prints";
+import { SkeletonCard } from "./_components/dashboard/skeleton-card";
 
 /**
  * Dashboard con datos reales de la base local. Cada bloque dinámico va en
@@ -13,6 +17,10 @@ import { MiniBoxMap } from "@/components/boxes/mini-box-map";
  * Mobile-first: una columna, dos tarjetas por fila y el estado de la cochera
  * arriba de todo. A partir de `sm` se abren tres columnas y en `lg` dos
  * paneles conviven lado a lado.
+ *
+ * El guard de sesión y sucursal vive en `layout.tsx` (`ShellGate`): acá solo
+ * se compone el orden de las secciones. Cada sección resuelve su permiso y su
+ * consulta dentro de su propio boundary, para no bloquear el resto del render.
  */
 export default function DashboardPage() {
   return (
@@ -24,7 +32,7 @@ export default function DashboardPage() {
             Estado del estacionamiento en tiempo real
           </p>
         </div>
-        <QuickActions />
+        <QuickActionsSection />
       </header>
 
       <section aria-label="Ocupación de boxes" className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -36,7 +44,7 @@ export default function DashboardPage() {
             </>
           }
         >
-          <OccupancyCards />
+          <OccupancyCardsSection />
         </Suspense>
       </section>
 
@@ -48,10 +56,10 @@ export default function DashboardPage() {
 
       <section className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
         <Suspense fallback={<SkeletonCard />}>
-          <ShiftCard />
+          <ShiftCardSection />
         </Suspense>
         <Suspense fallback={<SkeletonCard />}>
-          <SubscriptionsCard />
+          <SubscriptionsCardSection />
         </Suspense>
       </section>
 
@@ -66,7 +74,7 @@ export default function DashboardPage() {
             </>
           }
         >
-          <TodayCards />
+          <TodayCardsSection />
         </Suspense>
       </section>
 
@@ -81,455 +89,18 @@ export default function DashboardPage() {
             </>
           }
         >
-          <YesterdayCards />
+          <YesterdayCardsSection />
         </Suspense>
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
         <Suspense fallback={<SkeletonCard />}>
-          <MethodsToday />
+          <MethodsTodaySection />
         </Suspense>
         <Suspense fallback={<SkeletonCard />}>
-          <PendingPrints />
+          <PendingPrintsSection />
         </Suspense>
       </section>
     </div>
   );
-}
-
-async function ReportLink() {
-  const context = await getBranchContext();
-  if (!context?.can("reports.read")) return null;
-  return (
-    <Link
-      href="/reportes"
-      className="inline-flex min-h-10 items-center gap-1 rounded-md border border-neutral-700 px-3 text-xs font-medium text-neutral-300 hover:bg-neutral-800"
-    >
-      Ver reportes
-      <span aria-hidden="true">→</span>
-    </Link>
-  );
-}
-
-/** Atajos del día: las dos acciones que más se usan en el mostrador. */
-async function QuickActions() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const canOpen = context.can("session.open");
-  const canClose = context.can("session.close");
-  if (!canOpen && !canClose) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {canOpen && (
-        <Link
-          href="/operaciones/ingreso"
-          className="inline-flex min-h-10 items-center rounded-md bg-amber-200 px-3 text-xs font-semibold text-neutral-950 hover:bg-amber-100"
-        >
-          Registrar ingreso
-        </Link>
-      )}
-      {canClose && (
-        <Link
-          href="/operaciones/egreso"
-          className="inline-flex min-h-10 items-center rounded-md border border-neutral-700 px-3 text-xs font-medium text-neutral-200 hover:bg-neutral-800"
-        >
-          Cobrar egreso
-        </Link>
-      )}
-      <ReportLink />
-    </div>
-  );
-}
-
-async function MiniBoxMapSection() {
-  // El mapa compacto muestra boxes, patentes y tickets: si el usuario tiene
-  // negado `box.read`, no se renderiza (el menú ya oculta la sección).
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  if (!context.can("box.read")) return null;
-  return <MiniBoxMap branchId={context.branchId} />;
-}
-
-/** Turno de caja abierto: quién lo abrió, recaudado y autos adentro. */
-async function ShiftCard() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const shift = await loadOpenShiftSummary(context.branchId, {
-    userId: context.user.userId,
-    role: context.role,
-  });
-  const canManage = context.can("shift.manage");
-
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-neutral-200">Turno de caja</p>
-          <p className="mt-0.5 text-[11px] text-neutral-500">
-            {shift
-              ? `Abrió ${shift.openedByName} a las ${shift.openedAtLabel} hs`
-              : "No hay turno abierto"}
-          </p>
-        </div>
-        {canManage && (
-          <Link
-            href="/administracion/turnos"
-            className="shrink-0 rounded-md border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
-          >
-            Ver turnos
-          </Link>
-        )}
-      </div>
-
-      {shift ? (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[11px] text-neutral-500">Recaudado en el turno</p>
-            <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-400">
-              {shift.collectedLabel}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] text-neutral-500">Autos adentro</p>
-            <p className="mt-0.5 text-lg font-semibold tabular-nums text-neutral-100">
-              {shift.openSessions}
-            </p>
-          </div>
-          <p className="col-span-2 text-[11px] text-neutral-500">
-            Abierto hace {formatElapsed(shift.elapsedMinutes)}
-          </p>
-        </div>
-      ) : (
-        <p className="mt-3 text-xs text-neutral-400">
-          Abrí un turno para registrar ingresos y cobros.{" "}
-          {canManage && (
-            <Link href="/administracion/turnos" className="underline">
-              Abrir turno
-            </Link>
-          )}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Impacto de abonos en el día: activos, recurrente y próximos vencimientos. */
-async function SubscriptionsCard() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  if (!context.can("reports.read")) return null;
-
-  const rows = await query<{
-    active: string;
-    recurring: string;
-    expiring: string;
-  }>(
-    `SELECT count(*) FILTER (
-              WHERE starts_on <= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
-                AND ends_on >= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
-            )::text AS active,
-            COALESCE(sum(amount_cents) FILTER (
-              WHERE starts_on <= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
-                AND ends_on >= (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
-            ), 0)::text AS recurring,
-            count(*) FILTER (
-              WHERE ends_on BETWEEN (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
-                                AND (now() AT TIME ZONE 'America/Argentina/Cordoba')::date + 30
-            )::text AS expiring
-       FROM subscriptions
-      WHERE branch_id = $1 AND status = 'active'`,
-    [context.branchId],
-  );
-  const s = rows[0] ?? { active: "0", recurring: "0", expiring: "0" };
-
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-neutral-200">Abonados</p>
-          <p className="mt-0.5 text-[11px] text-neutral-500">
-            Vigentes hoy y facturación recurrente
-          </p>
-        </div>
-        <Link
-          href="/reportes/abonados"
-          className="shrink-0 rounded-md border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-neutral-800"
-        >
-          Ver detalle
-        </Link>
-      </div>
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <div>
-          <p className="text-[11px] text-neutral-500">Activos</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-400">
-            {s.active}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] text-neutral-500">Recurrente / mes</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-neutral-100">
-            {formatARS(s.recurring)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] text-neutral-500">Vencen 30 días</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-amber-400">
-            {s.expiring}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Estado de la cochera: es el dato que el dueño mira desde el teléfono. Va
- * como tarjeta ancha con la ocupación grande y la barra, no como tres números
- * sueltos que en 360px no se leen.
- */
-async function OccupancyCards() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const rows = await query<{ occupied: string; available: string; out_of_service: string }>(
-    `SELECT
-       count(*) FILTER (WHERE status = 'occupied')      AS occupied,
-       count(*) FILTER (WHERE status = 'available')     AS available,
-       count(*) FILTER (WHERE status = 'out_of_service') AS out_of_service
-     FROM box_status
-     WHERE branch_id = $1`,
-    [context.branchId],
-  );
-  const s = rows[0] ?? { occupied: "0", available: "0", out_of_service: "0" };
-  const occupied = Number(s.occupied);
-  const available = Number(s.available);
-  const total = occupied + available + Number(s.out_of_service);
-  const pct = total > 0 ? Math.round((occupied / total) * 100) : 0;
-
-  return (
-    <>
-      <div className="col-span-2 rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium text-neutral-500">Ocupación ahora</p>
-            <p
-              className={
-                "mt-1 text-4xl font-semibold tabular-nums sm:text-5xl " +
-                (pct >= 90 ? "text-red-400" : pct >= 70 ? "text-amber-400" : "text-emerald-400")
-              }
-            >
-              {pct}%
-            </p>
-          </div>
-          <p className="text-right text-xs text-neutral-500">
-            <span className="block text-sm font-medium tabular-nums text-neutral-300">
-              {occupied} / {total}
-            </span>
-            boxes ocupados
-            {total === 0 ? " · sin boxes cargados" : ""}
-          </p>
-        </div>
-        <div
-          className="mt-3 h-2 w-full overflow-hidden rounded-full bg-neutral-800"
-          role="img"
-          aria-label={`${pct}% de ocupación: ${occupied} de ${total} boxes ocupados`}
-        >
-          <div
-            className={
-              "h-full rounded-full " +
-              (pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500")
-            }
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-
-      <StatCard label="Ocupados" value={String(occupied)} tone="red" />
-      <StatCard label="Disponibles" value={String(available)} tone="green" />
-    </>
-  );
-}
-
-async function TodayCards() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const rows = await query<{
-    ingresos: string;
-    egresos: string;
-    recaudado_cents: string;
-  }>(
-    `SELECT
-       (SELECT count(*) FROM parking_sessions
-         WHERE branch_id = $1
-           AND (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-             = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS ingresos,
-       (SELECT count(*) FROM parking_sessions
-         WHERE branch_id = $1
-           AND status = 'closed'
-           AND (exit_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-             = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS egresos,
-       (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
-          FROM payments p
-         WHERE p.branch_id = $1
-           AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-             = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_cents`,
-    [context.branchId],
-  );
-  const s = rows[0] ?? { ingresos: "0", egresos: "0", recaudado_cents: "0" };
-  return (
-    <>
-      <StatCard label="Ingresos de hoy" value={String(s.ingresos)} tone="neutral" />
-      <StatCard label="Egresos de hoy" value={String(s.egresos)} tone="neutral" />
-      <StatCard
-        label="Recaudado hoy"
-        value={formatARS(Number(s.recaudado_cents))}
-        tone="green"
-        className="col-span-2 sm:col-span-1"
-      />
-    </>
-  );
-}
-
-const TONES: Record<string, string> = {
-  red: "text-red-400",
-  green: "text-emerald-400",
-  neutral: "text-neutral-100",
-};
-
-async function YesterdayCards() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const rows = await query<{
-    ingresos_ayer: string;
-    recaudado_hoy: string;
-    recaudado_ayer: string;
-  }>(
-    `SELECT
-       (SELECT count(*) FROM parking_sessions
-         WHERE branch_id = $1
-           AND (entry_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-             = ((now() - interval '1 day') AT TIME ZONE 'America/Argentina/Cordoba')::date) AS ingresos_ayer,
-       (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
-          FROM payments p
-         WHERE p.branch_id = $1
-           AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-             = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_hoy,
-       (SELECT COALESCE(SUM(p.amount_charged_cents), 0)
-          FROM payments p
-         WHERE p.branch_id = $1
-           AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-             = ((now() - interval '1 day') AT TIME ZONE 'America/Argentina/Cordoba')::date) AS recaudado_ayer`,
-    [context.branchId],
-  );
-  const s = rows[0] ?? { ingresos_ayer: "0", recaudado_hoy: "0", recaudado_ayer: "0" };
-  const hoy = Number(s.recaudado_hoy);
-  const ayer = Number(s.recaudado_ayer);
-  const diff = ayer > 0 ? Math.round(((hoy - ayer) / ayer) * 100) : hoy > 0 ? 100 : 0;
-  return (
-    <>
-      <StatCard label="Ingresos de ayer" value={String(s.ingresos_ayer)} tone="neutral" />
-      <StatCard label="Recaudado ayer" value={formatARS(ayer)} tone="neutral" />
-      <StatCard
-        label="Hoy vs ayer"
-        value={`${diff >= 0 ? "+" : ""}${diff}%`}
-        tone={diff >= 0 ? "green" : "red"}
-        className="col-span-2 sm:col-span-1"
-      />
-    </>
-  );
-}
-
-async function MethodsToday() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const rows = await query<{ method_name: string; n: string; collected: string }>(
-    `SELECT m.name AS method_name, count(*)::text AS n,
-            COALESCE(sum(p.amount_charged_cents), 0)::text AS collected
-       FROM payments p
-       JOIN payment_methods m ON m.id = p.method_id
-      WHERE p.branch_id = $1
-        AND (p.paid_at AT TIME ZONE 'America/Argentina/Cordoba')::date
-          = (now() AT TIME ZONE 'America/Argentina/Cordoba')::date
-      GROUP BY m.name ORDER BY sum(p.amount_charged_cents) DESC`,
-    [context.branchId],
-  );
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
-      <p className="text-xs font-medium text-neutral-500">Cobros de hoy por medio</p>
-      {rows.length === 0 ? (
-        <p className="mt-2 text-sm text-neutral-500">Sin cobros hoy todavía.</p>
-      ) : (
-        <ul className="mt-2 space-y-1.5 text-sm">
-          {rows.map((m) => (
-            <li key={m.method_name} className="flex justify-between gap-3">
-              <span className="min-w-0 truncate text-neutral-300">{m.method_name}</span>
-              <span className="shrink-0 tabular-nums text-neutral-400">
-                {m.n} × {formatARS(Number(m.collected))}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-async function PendingPrints() {
-  const context = await getBranchContext();
-  if (!context?.branchId) return null;
-  const rows = await query<{ n: string; errors: string }>(
-    `SELECT
-       count(*) FILTER (WHERE j.status = 'pending')::text AS n,
-       count(*) FILTER (WHERE j.status = 'error')::text AS errors
-       FROM print_jobs j
-       JOIN parking_sessions s ON s.id = j.session_id
-      WHERE s.branch_id = $1`,
-    [context.branchId],
-  );
-  const s = rows[0] ?? { n: "0", errors: "0" };
-  const total = Number(s.n) + Number(s.errors);
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
-      <p className="text-xs font-medium text-neutral-500">Impresión pendiente</p>
-      <p className={`mt-2 text-2xl font-semibold tabular-nums ${total > 0 ? "text-amber-400" : "text-neutral-100"}`}>
-        {total}
-      </p>
-      <p className="mt-1 text-xs text-neutral-500">
-        {total > 0 ? "Reintentá desde Registrar ingreso." : "Todo impreso."}
-      </p>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  tone,
-  className = "",
-}: {
-  label: string;
-  value: string;
-  tone: keyof typeof TONES;
-  className?: string;
-}) {
-  return (
-    <div
-      className={
-        "min-w-0 rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5 " + className
-      }
-    >
-      <p className="text-[11px] font-medium text-neutral-500 sm:text-xs">{label}</p>
-      <p
-        className={
-          "mt-1.5 break-words text-xl font-semibold tabular-nums sm:mt-2 sm:text-2xl " +
-          TONES[tone]
-        }
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function SkeletonCard({ className = "" }: { className?: string }) {
-  return <div className={"h-24 animate-pulse rounded-xl bg-neutral-900 " + className} />;
 }

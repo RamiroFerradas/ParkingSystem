@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db/client";
 import { rpcErrorResponse } from "@/lib/api/guard";
+import { parseBody } from "@/lib/api/body";
 import { getBranchContextOrFail } from "@/lib/auth/context";
+import { moveSessionSchema, type MoveSessionPayload } from "@/lib/schemas/operations";
 
 interface SessionRow {
   id: string;
@@ -39,20 +41,14 @@ export async function POST(request: Request) {
   const user = context.user;
   const branchId = context.branchId;
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseBody<MoveSessionPayload>(
+    request,
+    moveSessionSchema,
+    "Faltan datos del movimiento",
+  );
+  if (bodyError) return bodyError;
 
   const { sessionId, boxId } = body;
-  if (typeof sessionId !== "string" || typeof boxId !== "string") {
-    return NextResponse.json(
-      { error: "Faltan datos del movimiento" },
-      { status: 400 },
-    );
-  }
 
   const client = await pool.connect();
   try {
