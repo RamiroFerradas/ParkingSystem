@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { formatTime } from "@/lib/format";
 import { cx } from "@/lib/ui-classes";
+
+/** Suscripción vacía: solo interesa distinguir servidor de cliente. */
+const subscribeNever = () => () => {};
 
 export type BoxTileStatus = "available" | "occupied" | "out_of_service";
 
@@ -48,8 +51,11 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
   // El tiempo transcurrido depende del reloj: se pinta recién después de
   // hidratar para que el HTML del servidor y el primer render del cliente
   // coincidan (React #418 en /boxes/mapa).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
   const occupied = status === "occupied";
 
   return (
