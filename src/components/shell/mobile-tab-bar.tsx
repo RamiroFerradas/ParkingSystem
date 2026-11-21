@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MobileMoreButton } from "./mobile-nav";
 import { LinkPendingContent } from "./link-pending";
+import { findActiveHref } from "./nav-config";
 
 export type MobileTabIcon = "home" | "map" | "in" | "out";
 
@@ -11,11 +12,6 @@ export interface MobileTab {
   href: string;
   label: string;
   icon: MobileTabIcon;
-}
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(href + "/");
 }
 
 function TabIcon({ icon }: { icon: MobileTabIcon }) {
@@ -74,7 +70,11 @@ function TabIcon({ icon }: { icon: MobileTabIcon }) {
  */
 export function MobileTabBar({ tabs }: { tabs: MobileTab[] }) {
   const pathname = usePathname();
-  const anyTabActive = tabs.some((tab) => isActive(pathname, tab.href));
+  const activeHref = findActiveHref(
+    pathname,
+    tabs.map((tab) => tab.href),
+  );
+  const anyTabActive = activeHref !== null;
 
   return (
     <nav
@@ -83,7 +83,7 @@ export function MobileTabBar({ tabs }: { tabs: MobileTab[] }) {
     >
       <ul className="flex items-stretch">
         {tabs.map((tab) => {
-          const active = isActive(pathname, tab.href);
+          const active = tab.href === activeHref;
           return (
             <li key={tab.href} className="flex flex-1">
               <Link
@@ -97,6 +97,7 @@ export function MobileTabBar({ tabs }: { tabs: MobileTab[] }) {
                 <LinkPendingContent
                   className="flex w-full flex-col items-center justify-center gap-1"
                   hintClassName="absolute right-1.5 top-1.5"
+                  showHint={!active}
                 >
                   <TabIcon icon={tab.icon} />
                   {tab.label}

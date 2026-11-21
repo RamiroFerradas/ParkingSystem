@@ -14,7 +14,8 @@ const ns = (s: string) => s.replace(/\u00a0|\u202f/g, " ");
 function row(overrides: Record<string, unknown> = {}) {
   return {
     id: "shift-1",
-    opened_at_ms: String(new Date(2026, 0, 15, 9, 5).getTime()),
+    // 12:05Z = 09:05 en la zona del establecimiento.
+    opened_at_ms: String(new Date("2026-01-15T12:05:00Z").getTime()),
     opened_by: "user-1",
     opened_by_name: "Operador Uno",
     collected: "123456",
@@ -25,7 +26,8 @@ function row(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 0, 15, 11, 35, 30));
+  // 14:35:30Z = 11:35:30 ART: 150 minutos después de la apertura.
+  vi.setSystemTime(new Date("2026-01-15T14:35:30Z"));
   dbQuery.mockResolvedValue([]);
 });
 
@@ -59,8 +61,9 @@ describe("loadOpenShiftSummary", () => {
 
     expect({ ...summary, collectedLabel: ns(summary!.collectedLabel) }).toEqual({
       id: "shift-1",
-      openedAtMs: new Date(2026, 0, 15, 9, 5).getTime(),
+      openedAtMs: new Date("2026-01-15T12:05:00Z").getTime(),
       elapsedMinutes: 150,
+      // 12:05Z es 09:05 en la zona del establecimiento.
       openedAtLabel: "09:05",
       openedByName: "Operador Uno",
       collectedLabel: "$ 1.234,56",

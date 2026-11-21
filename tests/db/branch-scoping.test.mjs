@@ -59,20 +59,34 @@ describe("multi-branch isolation", () => {
     await withRollback(async (db) => {
       const { auto, actor, boxes } = await pickFixtures(db);
       const { branch, box } = await secondBranch(db);
+      const box2 = (
+        await db.query(
+          `INSERT INTO parking_boxes (number, branch_id, floor_id)
+           SELECT 'S' || substr(id::text, 1, 6), $1, floor_id FROM parking_boxes WHERE id = $2
+           RETURNING id`,
+          [branch.id, box.id],
+        )
+      ).rows[0];
       await db.query(
         "INSERT INTO cash_shifts (id, opened_by, branch_id) VALUES ($1,$2,$3)",
         [crypto.randomUUID(), actor.id, branch.id],
       );
 
-      const local = (
-        await db.query(OPEN, [crypto.randomUUID(), plate(), auto.id, boxes[0].id, actor.id, null])
-      ).rows[0].r;
-      const remote = (
-        await db.query(OPEN, [crypto.randomUUID(), plate(), auto.id, box.id, actor.id, null])
-      ).rows[0].r;
+      const open = async (boxId) =>
+        (
+          await db.query(OPEN, [crypto.randomUUID(), plate(), auto.id, boxId, actor.id, null])
+        ).rows[0].r;
 
-      assert.equal(Number(remote.ticket_number), 1);
-      assert.notEqual(Number(remote.ticket_number), Number(local.ticket_number));
+      const local1 = await open(boxes[0].id);
+      // La sucursal nueva tiene su propia secuencia: arranca en 1 aunque la
+      // sucursal por defecto ya tenga tickets emitidos.
+      const remote1 = await open(box.id);
+      const remote2 = await open(box2.id);
+      const local2 = await open(boxes[1].id);
+
+      assert.equal(Number(remote1.ticket_number), 1);
+      assert.equal(Number(remote2.ticket_number), 2);
+      assert.equal(Number(local2.ticket_number), Number(local1.ticket_number) + 1);
     });
   });
 

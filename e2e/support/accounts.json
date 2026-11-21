@@ -1,0 +1,10 @@
+{
+  "admin": {
+    "email": "e2e-admin@parking.local",
+    "password": "e2e-Admin-2026!"
+  },
+  "employee": {
+    "email": "e2e-employee@parking.local",
+    "password": "e2e-Employee-2026!"
+  }
+}

@@ -15,16 +15,19 @@ export function LinkPendingContent({
   children,
   className = "flex w-full items-center justify-between gap-2",
   hintClassName = "",
+  showHint = true,
 }: {
   children: ReactNode;
   className?: string;
   hintClassName?: string;
+  /** false = sin punto ámbar (útil sobre el ítem que ya es la ruta actual). */
+  showHint?: boolean;
 }) {
   const { pending } = useLinkStatus();
   return (
     <span aria-busy={pending || undefined} className={className}>
       {children}
-      {pending ? (
+      {pending && showHint ? (
         <span
           aria-hidden="true"
           data-link-pending="true"

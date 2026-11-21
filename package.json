@@ -2,21 +2,22 @@
   "name": "parking-system",
   "version": "0.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --env-file-if-exists=.env.local --test tests/",
-    "test:db": "node --env-file-if-exists=.env.local --test tests/",
+    "test": "node --env-file-if-exists=.env.local --test \"tests/db/*.test.mjs\"",
+    "test:db": "node --env-file-if-exists=.env.local --test \"tests/db/*.test.mjs\"",
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:all": "vitest run && node --env-file-if-exists=.env.local --test tests/",
+    "test:all": "vitest run && node --env-file-if-exists=.env.local --test \"tests/db/*.test.mjs\"",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install chromium",
-    "e2e:schema": "node e2e/support/schema.mjs"
+    "e2e:schema": "node e2e/support/schema.mts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

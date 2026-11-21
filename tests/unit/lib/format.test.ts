@@ -39,25 +39,24 @@ describe("formatElapsed", () => {
 });
 
 describe("formatTime", () => {
-  it("renders local 24h HH:MM", () => {
-    // Local-time constructor keeps the assertion timezone independent.
-    expect(formatTime(new Date(2026, 0, 15, 9, 5))).toBe("09:05");
-    expect(formatTime(new Date(2026, 0, 15, 23, 59))).toBe("23:59");
+  it("renders 24h HH:MM in the business timezone", () => {
+    // ART = UTC-3: 12:05Z is 09:05 in Cordoba, whatever the runner's TZ is.
+    expect(formatTime(new Date("2026-01-15T12:05:00Z"))).toBe("09:05");
+    expect(formatTime(new Date("2026-01-16T02:59:00Z"))).toBe("23:59");
   });
 
   it("accepts an ISO string", () => {
-    const d = new Date(2026, 0, 15, 18, 42);
-    expect(formatTime(d.toISOString())).toBe("18:42");
+    expect(formatTime("2026-01-15T21:42:00Z")).toBe("18:42");
   });
 });
 
 describe("formatDate", () => {
-  it("renders local DD/MM/YYYY", () => {
-    expect(formatDate(new Date(2026, 0, 15))).toBe("15/01/2026");
-    expect(formatDate(new Date(2026, 11, 1))).toBe("01/12/2026");
+  it("renders DD/MM/YYYY in the business timezone", () => {
+    expect(formatDate(new Date("2026-01-15T15:00:00Z"))).toBe("15/01/2026");
+    expect(formatDate(new Date("2026-12-01T15:00:00Z"))).toBe("01/12/2026");
   });
 
   it("accepts an ISO string", () => {
-    expect(formatDate(new Date(2026, 5, 9).toISOString())).toBe("09/06/2026");
+    expect(formatDate("2026-06-09T15:00:00Z")).toBe("09/06/2026");
   });
 });
