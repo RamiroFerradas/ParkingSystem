@@ -37,5 +37,7 @@ test("records an entry and shows the stay on the estadías screen", async ({ pag
   await page.goto("/operaciones/estadias");
   // The shell renders both the mobile and the desktop layout, so the plate
   // appears twice; the assertion targets the layout the viewport shows.
-  await expect(page.locator("main:visible").getByText(plate).first()).toBeVisible();
+  await expect(
+    page.getByText(plate).filter({ visible: true }).first(),
+  ).toBeVisible();
 });

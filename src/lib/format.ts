@@ -1,4 +1,11 @@
 /** Formato de moneda y fechas — ARS, es-AR, 24h (requisito global S6). */
+
+/**
+ * Zona del establecimiento. Se fija explícitamente porque el servidor y el
+ * navegador deben formatear igual: si el server corre en UTC y el cliente en
+ * ART, cada hora renderizada difiere y la hidratación falla (React #418).
+ */
+export const BUSINESS_TZ = "America/Argentina/Cordoba";
 export function formatARS(cents: number | string | bigint): string {
   const value = typeof cents === "bigint" ? Number(cents) : Number(cents);
   return new Intl.NumberFormat("es-AR", {
@@ -13,6 +20,7 @@ export function formatTime(date: Date | string): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: BUSINESS_TZ,
   }).format(new Date(date));
 }
 
@@ -21,6 +29,7 @@ export function formatDate(date: Date | string): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: BUSINESS_TZ,
   }).format(new Date(date));
 }
 
