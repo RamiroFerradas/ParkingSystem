@@ -17,8 +17,19 @@ test("records an entry and shows the stay on the estadías screen", async ({ pag
 
   await page.goto("/operaciones/ingreso");
   await page.getByLabel("Patente").fill(plate);
-  await page.locator("#vehicleType").selectOption({ index: 1 });
+
+  // The plate lookup runs on blur and resets the vehicle type, so the type is
+  // chosen only once the form says which vehicle it is dealing with.
+  await page.getByLabel("Patente").blur();
+  await expect(page.getByText(/Vehículo nuevo/)).toBeVisible();
+  const typeSelect = page.locator("#vehicleType");
+  await typeSelect.selectOption({ label: "Auto" });
+  await expect(typeSelect).not.toHaveValue("");
+
   await page.locator("[data-box-option]").first().click();
+  // Picking a box must not throw away what the operator already typed.
+  await expect(typeSelect).not.toHaveValue("");
+
   await page.getByRole("button", { name: "Confirmar ingreso" }).click();
 
   await expect(page.getByText("Ingreso registrado")).toBeVisible();
