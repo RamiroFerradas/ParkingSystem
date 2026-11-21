@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { formatTime } from "@/lib/format";
 import { cx } from "@/lib/ui-classes";
 
@@ -44,6 +45,11 @@ const INACTIVE_STYLE =
 
 export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
   const { number, sector, status, plate, entryAt, vehicleTypeName, ticketNumber, elapsedLabel, isActive } = box;
+  // El tiempo transcurrido depende del reloj: se pinta recién después de
+  // hidratar para que el HTML del servidor y el primer render del cliente
+  // coincidan (React #418 en /boxes/mapa).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const occupied = status === "occupied";
 
   return (
@@ -92,7 +98,7 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
             </div>
             <div className="truncate tabular-nums opacity-70">
               desde {formatTime(entryAt ?? "")}
-              {elapsedLabel ? ` · ${elapsedLabel}` : ""}
+              {mounted && elapsedLabel ? ` · ${elapsedLabel}` : ""}
             </div>
           </>
         ) : (
