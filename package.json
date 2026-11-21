@@ -16,7 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install chromium",
-    "e2e:schema": "node e2e/support/schema.mjs"
+    "e2e:schema": "node e2e/support/schema.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

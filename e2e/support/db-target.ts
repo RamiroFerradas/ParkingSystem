@@ -17,7 +17,7 @@ export const DEFAULT_LOCAL_DATABASE_URL =
  * @param {Record<string, string | undefined>} [env]
  * @returns {string}
  */
-export function resolveDatabaseUrl(env = process.env) {
+export function resolveDatabaseUrl(env: Record<string, string | undefined> = process.env) {
   return env.E2E_DATABASE_URL ?? DEFAULT_LOCAL_DATABASE_URL;
 }
 
@@ -25,6 +25,6 @@ export function resolveDatabaseUrl(env = process.env) {
  * @param {string} url
  * @returns {boolean}
  */
-export function looksLikePooler(url) {
+export function looksLikePooler(url: string): boolean {
   return url.includes("pooler.supabase.com") || url.includes(":6543");
 }

@@ -3,7 +3,7 @@ import {
   DEFAULT_LOCAL_DATABASE_URL,
   looksLikePooler,
   resolveDatabaseUrl,
-} from "../../../e2e/support/db-target.mjs";
+} from "../../../e2e/support/db-target.ts";
 
 describe("resolveDatabaseUrl", () => {
   it("falls back to the disposable local database", () => {

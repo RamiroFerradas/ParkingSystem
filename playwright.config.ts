@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
-import { looksLikePooler, resolveDatabaseUrl } from "./e2e/support/db-target.mjs";
-import { resolveE2eSchema } from "./e2e/support/schema-guard.mjs";
+import { looksLikePooler, resolveDatabaseUrl } from "./e2e/support/db-target.ts";
+import { resolveE2eSchema } from "./e2e/support/schema-guard.ts";
 
 /**
  * E2E harness for the dashboard.
@@ -56,7 +56,7 @@ export default defineConfig({
   reporter: process.env.CI
     ? [["github"], ["html", { open: "never" }]]
     : [["list"], ["html", { open: "never" }]],
-  globalTeardown: "./e2e/global-teardown.mjs",
+  globalTeardown: "./e2e/global-teardown.ts",
 
   use: {
     baseURL,
@@ -87,7 +87,7 @@ export default defineConfig({
   webServer: useExternalServer
     ? undefined
     : {
-        command: `node e2e/support/schema.mjs create && ${buildStep}pnpm exec next start -p ${port}`,
+        command: `node e2e/support/schema.ts create && ${buildStep}pnpm exec next start -p ${port}`,
         url: baseURL,
         reuseExistingServer: false,
         timeout: 300_000,

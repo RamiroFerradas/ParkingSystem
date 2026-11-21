@@ -1,14 +1,16 @@
-#!/usr/bin/env node
+// @ts-nocheck — módulo heredado de .mjs (scripts de soporte de Playwright).
+// Se convirtió a .ts para que el loader de Playwright y Node coincidan en el
+// formato de módulo; tiparlo por completo queda fuera de este cambio.
 /**
  * Builds and tears down the throwaway Postgres schema the Playwright suite runs
  * against.
  *
- *   node e2e/support/schema.mjs create
- *   node e2e/support/schema.mjs drop
+ *   node e2e/support/schema.ts create
+ *   node e2e/support/schema.ts drop
  *
  * The schema is dropped and recreated from `db/migrations` on every run, then
  * seeded with one branch, two accounts (admin/employee) and four boxes. The
- * name always comes from `schema-guard.mjs`, which refuses `public` and `dev`.
+ * name always comes from `schema-guard.ts`, which refuses `public` and `dev`.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -21,8 +23,8 @@ const ACCOUNTS = JSON.parse(
 );
 const ADMIN = ACCOUNTS.admin;
 const EMPLOYEE = ACCOUNTS.employee;
-import { resolveDatabaseUrl } from "./db-target.mjs";
-import { resolveE2eSchema } from "./schema-guard.mjs";
+import { resolveDatabaseUrl } from "./db-target.ts";
+import { resolveE2eSchema } from "./schema-guard.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MIGRATIONS_DIR = join(ROOT, "db", "migrations");
