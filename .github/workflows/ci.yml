@@ -58,6 +58,9 @@ jobs:
       - name: Aplicar migraciones (public + dev)
         run: node scripts/ci-migrate.mjs public dev
 
+      - name: Fixtures de tests/db (schema dev)
+        run: node scripts/ci-seed-dev.mjs
+
       - name: DB tests (tests/db, schema dev)
         run: pnpm test:db
 
