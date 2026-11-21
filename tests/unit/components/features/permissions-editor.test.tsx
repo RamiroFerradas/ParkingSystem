@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PermissionsEditor } from "@/app/(app)/administracion/usuarios/permissions-editor";
 
 const router = vi.hoisted(() => ({
@@ -175,10 +175,13 @@ describe("PermissionsEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar accesos" }));
 
     await screen.findByText("Accesos actualizados");
-    const gets = fetchMock.mock.calls.filter(
-      ([, init]) => (init as RequestInit | undefined)?.method !== "PUT",
-    );
-    expect(gets).toHaveLength(2);
+    // The reload fires after the toast: wait for it instead of racing it.
+    await waitFor(() => {
+      const gets = fetchMock.mock.calls.filter(
+        ([, init]) => (init as RequestInit | undefined)?.method !== "PUT",
+      );
+      expect(gets).toHaveLength(2);
+    });
   });
 
   it("shows the load error and no form when the GET fails", async () => {
