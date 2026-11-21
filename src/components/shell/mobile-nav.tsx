@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import type { NavGroup } from "./nav-config";
+import { findActiveHref } from "./nav-config";
 import { LinkPendingContent } from "./link-pending";
 
 interface MobileNavValue {
@@ -34,12 +35,6 @@ const MobileNavContext = createContext<MobileNavValue>(NOOP);
 
 function useMobileNav(): MobileNavValue {
   return useContext(MobileNavContext);
-}
-
-// Ítem activo según la ruta actual: exacto para "/", prefijo para el resto.
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(href + "/");
 }
 
 /**
@@ -153,6 +148,12 @@ export function MobileMoreButton({ active }: { active: boolean }) {
 function MobileNavSheet({ groups }: { groups: NavGroup[] }) {
   const { open, closeMenu } = useMobileNav();
   const pathname = usePathname();
+  const activeHref = findActiveHref(
+    pathname,
+    groups.flatMap((group) =>
+      group.items.map((item) => (item.enabled ? item.href : undefined)),
+    ),
+  );
 
   if (!open) return null;
 
@@ -208,36 +209,41 @@ function MobileNavSheet({ groups }: { groups: NavGroup[] }) {
                 {group.label}
               </p>
               <ul className="space-y-0.5">
-                {group.items.map((item) =>
-                  item.enabled && item.href ? (
+                {group.items.map((item) => {
+                  if (!(item.enabled && item.href)) {
+                    return (
+                      <li key={item.label}>
+                        <span
+                          aria-disabled="true"
+                          className="flex min-h-12 cursor-not-allowed items-center rounded-md px-3 text-sm text-neutral-600"
+                        >
+                          {item.label}
+                        </span>
+                      </li>
+                    );
+                  }
+
+                  const active = item.href === activeHref;
+                  return (
                     <li key={item.label}>
                       <Link
                         href={item.href}
                         onClick={closeMenu}
-                        aria-current={
-                          isActive(pathname, item.href) ? "page" : undefined
-                        }
+                        aria-current={active ? "page" : undefined}
                         className={
                           "flex min-h-12 items-center rounded-md px-3 text-sm " +
-                          (isActive(pathname, item.href)
+                          (active
                             ? "bg-neutral-800 font-medium text-neutral-100"
                             : "text-neutral-300 active:bg-neutral-800")
                         }
                       >
-                        <LinkPendingContent>{item.label}</LinkPendingContent>
+                        <LinkPendingContent showHint={!active}>
+                          {item.label}
+                        </LinkPendingContent>
                       </Link>
                     </li>
-                  ) : (
-                    <li key={item.label}>
-                      <span
-                        aria-disabled="true"
-                        className="flex min-h-12 cursor-not-allowed items-center rounded-md px-3 text-sm text-neutral-600"
-                      >
-                        {item.label}
-                      </span>
-                    </li>
-                  ),
-                )}
+                  );
+                })}
               </ul>
             </div>
           ))}

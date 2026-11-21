@@ -14,6 +14,30 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** ¿La ruta actual cae dentro de este ítem? Exacto para "/", prefijo para el resto. */
+export function matchesPath(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+/**
+ * Un solo ítem activo por navegación: gana el href más específico.
+ * Sin esto, /reportes/boxes marcaba a la vez "Reportes" (/reportes) y
+ * "Ranking de boxes" (/reportes/boxes), porque el prefijo de la sección
+ * también coincide con sus subrutas.
+ */
+export function findActiveHref(
+  pathname: string,
+  hrefs: (string | undefined)[],
+): string | null {
+  let best: string | null = null;
+  for (const href of hrefs) {
+    if (!href || !matchesPath(pathname, href)) continue;
+    if (best === null || href.length > best.length) best = href;
+  }
+  return best;
+}
+
 /**
  * Menú principal (§13 del pedido). Un ítem `enabled: false` se muestra
  * deshabilitado con su nota: entra cuando el módulo esté implementado
