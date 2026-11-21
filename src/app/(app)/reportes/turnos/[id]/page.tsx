@@ -86,6 +86,14 @@ export default async function TurnoDetallePage({
         <Card label="Autos adentro" value={summary.still_open} size="md" />
       </section>
 
+      {Number(shift.closing_open_sessions) > 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          El turno se cerró con {shift.closing_open_sessions} vehículo
+          {Number(shift.closing_open_sessions) === 1 ? "" : "s"} adentro. Siguieron
+          estacionados y sus cobros quedaron en el turno siguiente.
+        </p>
+      )}
+
       {(shift.opening_notes || shift.closing_notes) && (
         <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 text-sm">
           {shift.opening_notes && (

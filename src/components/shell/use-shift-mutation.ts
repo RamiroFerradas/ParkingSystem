@@ -25,13 +25,14 @@ export function useShiftMutation() {
     path: string,
     fallbackError: string,
     handlers: ShiftMutationHandlers,
+    body: Record<string, unknown> = {},
   ) {
     setPending(true);
     try {
       const res = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) {

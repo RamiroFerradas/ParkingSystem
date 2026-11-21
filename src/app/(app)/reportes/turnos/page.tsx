@@ -19,6 +19,7 @@ interface ShiftRow {
   entered: string;
   paid_count: string;
   collected: string;
+  closing_open_sessions: string;
 }
 
 export default async function TurnosReportPage({
@@ -45,7 +46,8 @@ export default async function TurnosReportPage({
             GREATEST(0, round(extract(epoch FROM (COALESCE(cs.closed_at, now()) - cs.opened_at)) / 60))::text AS minutes,
             (SELECT count(*) FROM parking_sessions s WHERE s.shift_id = cs.id)::text AS entered,
             (SELECT count(*) FROM payments p WHERE p.shift_id = cs.id)::text AS paid_count,
-            (SELECT COALESCE(sum(p.amount_charged_cents), 0) FROM payments p WHERE p.shift_id = cs.id)::text AS collected
+            (SELECT COALESCE(sum(p.amount_charged_cents), 0) FROM payments p WHERE p.shift_id = cs.id)::text AS collected,
+            cs.closing_open_sessions::text
        FROM cash_shifts cs
        JOIN profiles po ON po.id = cs.opened_by
        LEFT JOIN profiles pc ON pc.id = cs.closed_by
@@ -142,6 +144,11 @@ export default async function TurnosReportPage({
                   >
                     {r.status === "open" ? "Abierto" : "Cerrado"}
                   </span>
+                  {Number(r.closing_open_sessions) > 0 && (
+                    <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-300">
+                      {r.closing_open_sessions} adentro
+                    </span>
+                  )}
                 </Td>
                 <Td padding="compact" tone="inherit">{r.opened_by_name}</Td>
                 <Td padding="compact" tone="inherit">

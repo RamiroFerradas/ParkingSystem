@@ -58,14 +58,19 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
   async function closeShift() {
     if (!shift) return;
     setError(null);
-    await run("/api/shifts/close", "No se pudo cerrar el turno", {
-      onSuccess: () => {
-        setOpen(false);
-        setConfirming(false);
-        toast(`Turno cerrado · Facturado ${shift.collectedLabel}`);
+    await run(
+      "/api/shifts/close",
+      "No se pudo cerrar el turno",
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setConfirming(false);
+          toast(`Turno cerrado · Facturado ${shift.collectedLabel}`);
+        },
+        onError: setError,
       },
-      onError: setError,
-    });
+      shift.openSessions > 0 ? { force: true } : {},
+    );
   }
 
   function closePanel() {
@@ -234,14 +239,23 @@ export function ShiftControl({ shift }: { shift: OpenShiftSummary | null }) {
                 Facturado {shift.collectedLabel} · {shift.openSessions}{" "}
                 {shiftNoun(shift.openSessions)} adentro
               </p>
+              {shift.openSessions > 0 ? (
+                <p className="mt-1 text-[11px] text-amber-300">
+                  Seguirán estacionados; sus cobros quedarán en el próximo turno.
+                </p>
+              ) : null}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={closeShift}
-                  disabled={busy || shift.openSessions > 0}
+                  disabled={busy}
                   className="flex-1 rounded-md bg-amber-500 px-2 py-1.5 text-xs font-semibold text-neutral-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {pending ? "Cerrando..." : "Confirmar cierre"}
+                  {pending
+                    ? "Cerrando..."
+                    : shift.openSessions > 0
+                      ? `Cerrar con ${shift.openSessions} adentro`
+                      : "Confirmar cierre"}
                 </button>
                 <button
                   type="button"

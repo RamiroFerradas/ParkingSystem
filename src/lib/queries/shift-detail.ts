@@ -11,6 +11,7 @@ export interface ShiftHeader {
   closed_by_name: string | null;
   opening_notes: string | null;
   closing_notes: string | null;
+  closing_open_sessions: string;
 }
 
 export interface ShiftSummary {
@@ -70,7 +71,8 @@ export async function loadShiftDetail(
             po.email AS opened_by_name,
             pc.email AS closed_by_name,
             cs.opening_notes,
-            cs.closing_notes
+            cs.closing_notes,
+            cs.closing_open_sessions::text
        FROM cash_shifts cs
        JOIN profiles po ON po.id = cs.opened_by
        LEFT JOIN profiles pc ON pc.id = cs.closed_by

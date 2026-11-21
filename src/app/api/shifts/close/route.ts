@@ -23,6 +23,7 @@ export async function POST(request: Request) {
 
   const notes =
     typeof body.notes === "string" && body.notes.length > 0 ? body.notes : null;
+  const force = body.force === true;
 
   const open = await query<{ id: string; opened_by: string }>(
     `SELECT id, opened_by FROM cash_shifts
@@ -50,12 +51,22 @@ export async function POST(request: Request) {
     [shift.id],
   );
   const openSessions = Number(pending[0]?.count ?? 0);
-  if (openSessions > 0) {
+  if (openSessions > 0 && !force) {
+    const inside = await query<{ ticket_number: string; plate: string | null }>(
+      `SELECT s.ticket_number::text, v.plate
+         FROM parking_sessions s
+         JOIN vehicles v ON v.id = s.vehicle_id
+        WHERE s.shift_id = $1 AND s.status = 'open'
+        ORDER BY s.ticket_number
+        LIMIT 5`,
+      [shift.id],
+    );
     return NextResponse.json(
       {
         code: "SHIFT_HAS_OPEN_SESSIONS",
         openSessions,
-        error: `Hay ${openSessions} vehículo${openSessions === 1 ? "" : "s"} sin egreso en este turno. Registrá el egreso antes de cerrarlo.`,
+        sessions: inside,
+        error: `Hay ${openSessions} vehículo${openSessions === 1 ? "" : "s"} sin egreso. Si cerrás el turno, sus cobros quedarán en el próximo turno.`,
       },
       { status: 409 },
     );
@@ -64,20 +75,26 @@ export async function POST(request: Request) {
   try {
     const rows = await query<{ id: string }>(
       `UPDATE cash_shifts
-          SET status = 'closed', closed_by = $1, closed_at = now(), closing_notes = $2
-        WHERE id = $3 AND status = 'open' AND branch_id = $4
+          SET status = 'closed', closed_by = $1, closed_at = now(),
+              closing_notes = $2, closing_open_sessions = $3
+        WHERE id = $4 AND status = 'open' AND branch_id = $5
         RETURNING id`,
-      [context.user.userId, notes, shift.id, context.branchId],
+      [context.user.userId, notes, openSessions, shift.id, context.branchId],
     );
     if (rows.length === 0) {
       return NextResponse.json({ error: "No hay turno abierto" }, { status: 400 });
     }
     await query(
-      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id)
-       VALUES (gen_random_uuid(), $1, $2, 'shift.close', 'cash_shift', $3)`,
-      [context.user.userId, context.branchId, rows[0]!.id],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'shift.close', 'cash_shift', $3, $4::jsonb)`,
+      [
+        context.user.userId,
+        context.branchId,
+        rows[0]!.id,
+        JSON.stringify({ open_sessions: openSessions, forced: force }),
+      ],
     );
-    return NextResponse.json({ ok: true, shiftId: rows[0]!.id });
+    return NextResponse.json({ ok: true, shiftId: rows[0]!.id, openSessions });
   } catch (err) {
     return rpcErrorResponse(err);
   }

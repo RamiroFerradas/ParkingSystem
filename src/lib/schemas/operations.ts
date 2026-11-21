@@ -57,7 +57,13 @@ export const openShiftSchema = optionalNotesBody;
 
 export type OpenShiftPayload = z.infer<typeof openShiftSchema>;
 
-export const closeShiftSchema = optionalNotesBody;
+export const closeShiftSchema = z
+  .object({
+    notes: ignoredString,
+    // Cerrar aunque queden autos adentro: la UI pide confirmación explícita.
+    force: ignoredBoolean,
+  })
+  .catch({});
 
 export type CloseShiftPayload = z.infer<typeof closeShiftSchema>;
 

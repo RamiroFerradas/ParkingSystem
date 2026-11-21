@@ -15,10 +15,31 @@ interface ShiftView {
   opened_by_id: string | null;
   totals: { method_name: string; total: string }[];
   openSessions: number;
+  /** Autos adentro de la sucursal, tengan o no turno asignado. */
+  branchOpenSessions: number;
   collected: string;
 }
 
-async function loadShift(): Promise<ShiftView> {
+async function loadShift(branchId: string | null): Promise<ShiftView> {
+  if (!branchId) {
+    return {
+      id: null,
+      opened_at: null,
+      opened_by: null,
+      opened_by_id: null,
+      totals: [],
+      openSessions: 0,
+      branchOpenSessions: 0,
+      collected: "0",
+    };
+  }
+  const branchCount = await query<{ n: string }>(
+    `SELECT count(*)::text AS n FROM parking_sessions
+      WHERE branch_id = $1 AND status = 'open'`,
+    [branchId],
+  );
+  const branchOpenSessions = Number(branchCount[0]?.n ?? 0);
+
   const shifts = await query<{
     id: string;
     opened_at: string;
@@ -28,8 +49,9 @@ async function loadShift(): Promise<ShiftView> {
     `SELECT cs.id, cs.opened_at::text, p.email AS opened_by, cs.opened_by AS opened_by_id
        FROM cash_shifts cs
        JOIN profiles p ON p.id = cs.opened_by
-      WHERE cs.status = 'open'
+      WHERE cs.status = 'open' AND cs.branch_id = $1
       LIMIT 1`,
+    [branchId],
   );
 
   if (shifts.length === 0) {
@@ -40,6 +62,7 @@ async function loadShift(): Promise<ShiftView> {
       opened_by_id: null,
       totals: [],
       openSessions: 0,
+      branchOpenSessions,
       collected: "0",
     };
   }
@@ -72,6 +95,7 @@ async function loadShift(): Promise<ShiftView> {
     opened_by_id: current.opened_by_id,
     totals,
     openSessions: Number(summary[0]?.open_sessions ?? 0),
+    branchOpenSessions,
     collected: summary[0]?.collected ?? "0",
   };
 }
@@ -83,7 +107,7 @@ export default async function TurnosPage() {
     return <AccessDenied message="Requiere permiso de turnos de caja." />;
   }
 
-  const shift = await loadShift();
+  const shift = await loadShift(user.branchId);
   const canCloseShift =
     !shift.opened_by_id ||
     user.role === "admin" ||
@@ -97,8 +121,8 @@ export default async function TurnosPage() {
           <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Turnos de caja</h1>
           <p className="text-sm text-neutral-500">
             El turno agrupa los ingresos y cobros de la jornada. El empleado cierra el
-            turno que abrió; admin y supervisor, cualquiera. No se cierra con autos
-            adentro.
+            turno que abrió; admin y supervisor, cualquiera. Se puede cerrar con autos
+            adentro: se avisa y sus cobros quedan en el próximo turno.
           </p>
         </div>
         {canSeeReports && (
@@ -128,8 +152,9 @@ export default async function TurnosPage() {
 
           {shift.openSessions > 0 && (
             <Alert tone="warning">
-              Hay {shift.openSessions} vehículo{shift.openSessions === 1 ? "" : "s"} sin egreso.
-              Registrá su salida antes de cerrar el turno.
+              Hay {shift.openSessions} vehículo{shift.openSessions === 1 ? "" : "s"} sin
+              egreso. Podés cerrar el turno igual: seguirán estacionados y sus cobros
+              quedarán en el próximo turno.
             </Alert>
           )}
 
@@ -151,6 +176,7 @@ export default async function TurnosPage() {
             open={true}
             canClose={canCloseShift}
             openedByName={shift.opened_by}
+            openSessions={shift.openSessions}
           />
         </>
       ) : (
@@ -162,6 +188,13 @@ export default async function TurnosPage() {
               atribuyen al turno abierto al momento de registrarse.
             </p>
           </div>
+          {shift.branchOpenSessions > 0 && (
+            <Alert tone="warning">
+              Hay {shift.branchOpenSessions} auto
+              {shift.branchOpenSessions === 1 ? "" : "s"} adentro sin turno abierto. Al
+              abrir uno, sus cobros quedarán en ese turno.
+            </Alert>
+          )}
           <ShiftActions open={false} />
         </>
       )}
