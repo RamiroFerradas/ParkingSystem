@@ -1,6 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { test as setup, expect, type Page } from "@playwright/test";
-import { ADMIN, EMPLOYEE } from "./support/seed-data.mjs";
+import accounts from "./support/accounts.json";
+
+const ADMIN = accounts.admin;
+const EMPLOYEE = accounts.employee;
 
 const AUTH_DIR = "e2e/.auth";
 

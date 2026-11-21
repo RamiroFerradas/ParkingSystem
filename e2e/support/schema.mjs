@@ -13,7 +13,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ADMIN, EMPLOYEE } from "./seed-data.mjs";
+// Single source of truth shared with `auth.setup.ts`. A JSON file keeps the
+// Node CLI (ESM) and the Playwright transform from disagreeing about named
+// exports of a .mjs module.
+const ACCOUNTS = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "accounts.json"), "utf8"),
+);
+const ADMIN = ACCOUNTS.admin;
+const EMPLOYEE = ACCOUNTS.employee;
 import { resolveDatabaseUrl } from "./db-target.mjs";
 import { resolveE2eSchema } from "./schema-guard.mjs";
 
