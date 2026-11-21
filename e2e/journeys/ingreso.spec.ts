@@ -35,5 +35,7 @@ test("records an entry and shows the stay on the estadías screen", async ({ pag
   await expect(page.getByText("Ingreso registrado")).toBeVisible();
 
   await page.goto("/operaciones/estadias");
-  await expect(page.getByText(plate)).toBeVisible();
+  // The shell renders both the mobile and the desktop layout, so the plate
+  // appears twice; the first visible one is the assertion target.
+  await expect(page.getByText(plate).first()).toBeVisible();
 });
