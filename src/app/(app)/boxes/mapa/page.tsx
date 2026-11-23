@@ -19,6 +19,8 @@ interface BoxStatusRow {
   vehicle_type_name: string | null;
   ticket_number: string | null;
   is_service_enabled: boolean;
+  key_left: boolean | null;
+  damage_notes: string | null;
 }
 
 interface InactiveBoxRow {
@@ -35,6 +37,7 @@ async function loadBoxes(branchId: string): Promise<BoxStatusRow[]> {
   return query<BoxStatusRow>(
     `SELECT b.id, b.number, b.sector, b.status, b.floor_id, b.floor_name, b.floor_sort,
             b.plate, b.entry_at, b.vehicle_type_name, s.ticket_number,
+            s.key_left, s.damage_notes,
             b.is_service_enabled
        FROM box_status b
        LEFT JOIN parking_sessions s ON s.id = b.session_id
@@ -134,6 +137,8 @@ export default async function MapaBoxesPage({
       elapsedLabel: elapsedFor(b.entry_at),
       serviceEnabled: b.is_service_enabled,
       isActive: true,
+      keyLeft: b.key_left === true,
+      damageNotes: b.damage_notes,
     };
     floorFor(b.floor_id, b.floor_name).boxes.push(box);
   }
@@ -152,6 +157,8 @@ export default async function MapaBoxesPage({
       elapsedLabel: null,
       serviceEnabled: b.is_service_enabled,
       isActive: false,
+      keyLeft: false,
+      damageNotes: null,
     };
     floorFor(b.floor_id, b.floor_name).boxes.push(box);
   }

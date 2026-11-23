@@ -116,6 +116,28 @@ export function BoxEditPanel({ box, floorOptions, onClose }: BoxEditPanelProps) 
             </p>
           )}
 
+          {occupied && (
+            <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-neutral-500">
+                Condición al ingresar
+              </p>
+              <p className="mt-1.5 text-sm text-neutral-300">
+                Llave:{" "}
+                <span className={box.keyLeft ? "font-medium text-amber-300" : "text-neutral-200"}>
+                  {box.keyLeft ? "en el vehículo" : "retirada"}
+                </span>
+              </p>
+              {box.damageNotes ? (
+                <p className="mt-1 text-sm text-red-300">
+                  <span className="text-neutral-500">Rotura: </span>
+                  {box.damageNotes}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-neutral-500">Sin roturas declaradas.</p>
+              )}
+            </div>
+          )}
+
           <label className="block">
             <span className={LABEL}>Número</span>
             <input

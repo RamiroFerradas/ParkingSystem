@@ -7,6 +7,8 @@ interface BoxRow {
   floor_name: string;
   status: string;
   plate: string | null;
+  key_left: boolean | null;
+  damage_notes: string | null;
 }
 
 const TILE_TONES: Record<string, string> = {
@@ -31,10 +33,12 @@ const STATUS_LABEL: Record<string, string> = {
  */
 export async function MiniBoxMap({ branchId }: { branchId: string }) {
   const rows = await query<BoxRow>(
-    `SELECT id, number, floor_name, status, plate
-       FROM box_status
-      WHERE branch_id = $1
-      ORDER BY floor_sort, number`,
+    `SELECT b.id, b.number, b.floor_name, b.status, b.plate,
+            s.key_left, s.damage_notes
+       FROM box_status b
+       LEFT JOIN parking_sessions s ON s.id = b.session_id
+      WHERE b.branch_id = $1
+      ORDER BY b.floor_sort, b.number`,
     [branchId],
   );
   if (rows.length === 0) {
@@ -61,7 +65,8 @@ export async function MiniBoxMap({ branchId }: { branchId: string }) {
         <div>
           <p className="text-sm font-medium text-neutral-200">Mapa de boxes</p>
           <p className="mt-0.5 text-[11px] text-neutral-500">
-            Número y patente en vivo. Tocá un box para abrirlo en el mapa.
+            Número y patente en vivo. L = llave · R = rotura. Tocá un box para abrirlo
+            en el mapa.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-[11px] tabular-nums">
@@ -91,6 +96,8 @@ export async function MiniBoxMap({ branchId }: { branchId: string }) {
                 const status = STATUS_LABEL[box.status] ?? "fuera de servicio";
                 const label = `Box ${box.number}, ${status}${
                   box.plate ? `, patente ${box.plate}` : ""
+                }${box.key_left ? ", llave en el vehículo" : ""}${
+                  box.damage_notes ? ", roturas declaradas" : ""
                 }`;
                 return (
                   <Link
@@ -112,6 +119,26 @@ export async function MiniBoxMap({ branchId }: { branchId: string }) {
                       </span>
                     ) : box.status === "out_of_service" ? (
                       <span className="mt-1 text-[9px] leading-none">fuera</span>
+                    ) : null}
+                    {(box.key_left || box.damage_notes) && box.status === "occupied" ? (
+                      <span className="mt-1 flex items-center justify-center gap-1">
+                        {box.key_left ? (
+                          <span
+                            title="Llave en el vehículo"
+                            className="rounded-sm bg-amber-400/90 px-1 text-[8px] font-bold leading-tight text-neutral-950"
+                          >
+                            L
+                          </span>
+                        ) : null}
+                        {box.damage_notes ? (
+                          <span
+                            title={`Rotura: ${box.damage_notes}`}
+                            className="rounded-sm bg-red-400/90 px-1 text-[8px] font-bold leading-tight text-neutral-950"
+                          >
+                            R
+                          </span>
+                        ) : null}
+                      </span>
                     ) : null}
                   </Link>
                 );

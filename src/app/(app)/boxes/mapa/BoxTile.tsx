@@ -22,6 +22,8 @@ export interface BoardBox {
   elapsedLabel: string | null;
   serviceEnabled: boolean;
   isActive: boolean;
+  keyLeft?: boolean;
+  damageNotes?: string | null;
 }
 
 interface BoxTileProps {
@@ -47,7 +49,7 @@ const INACTIVE_STYLE =
   "border-dashed border-neutral-700 bg-neutral-900/40 text-neutral-500";
 
 export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
-  const { number, sector, status, plate, entryAt, vehicleTypeName, ticketNumber, elapsedLabel, isActive } = box;
+  const { number, sector, status, plate, entryAt, vehicleTypeName, ticketNumber, elapsedLabel, isActive, keyLeft, damageNotes } = box;
   // El tiempo transcurrido depende del reloj: se pinta recién después de
   // hidratar para que el HTML del servidor y el primer render del cliente
   // coincidan (React #418 en /boxes/mapa).
@@ -106,6 +108,23 @@ export function BoxTile({ box, editable, selected, onSelect }: BoxTileProps) {
               desde {formatTime(entryAt ?? "")}
               {mounted && elapsedLabel ? ` · ${elapsedLabel}` : ""}
             </div>
+            {(keyLeft || damageNotes) && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {keyLeft && (
+                  <span className="rounded border border-amber-500/50 px-1 py-0.5 text-[9px] font-medium text-amber-200">
+                    Llave
+                  </span>
+                )}
+                {damageNotes && (
+                  <span
+                    title={damageNotes}
+                    className="max-w-full truncate rounded border border-red-500/50 px-1 py-0.5 text-[9px] font-medium text-red-300"
+                  >
+                    Rotura
+                  </span>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <span className="opacity-80">
