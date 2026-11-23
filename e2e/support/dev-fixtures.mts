@@ -255,7 +255,12 @@ export async function resetDevRunState(client: import("pg").Client, branchId: st
       WHERE branch_id = $1 AND status = 'open'`,
     [branchId],
   );
-  // Subscriptions reference the payment that charged them: out first.
+  // Subscriptions are referenced by the stays they covered and by the payment
+  // that charged them: unlink the stays first, then remove in FK order.
+  await client.query(
+    `UPDATE parking_sessions SET subscription_id = NULL WHERE branch_id = $1`,
+    [branchId],
+  );
   await client.query(`DELETE FROM subscriptions WHERE branch_id = $1`, [branchId]);
   await client.query(
     `DELETE FROM payments WHERE session_id IN (SELECT id FROM parking_sessions WHERE branch_id = $1)`,

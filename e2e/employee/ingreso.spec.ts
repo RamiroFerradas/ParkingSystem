@@ -100,3 +100,24 @@ test("sanea la patente, filtra boxes y registra el ingreso", async ({ page }) =>
 
   await payStay(page, plate);
 });
+
+test("un ingreso sin llave y sin averías no deja condición registrada", async ({ page }) => {
+  const plate = uniquePlate("SL");
+  await ensureOpenShift(page);
+
+  await page.goto("/operaciones/ingreso");
+  await page.getByLabel("Patente").fill(plate);
+  await page.getByLabel("Patente").blur();
+  await expect(page.getByText(/Vehículo nuevo/)).toBeVisible();
+  await page.locator("#vehicleType").selectOption({ label: "Auto" });
+  await boxOption(page).click();
+  await page.getByRole("button", { name: "Confirmar ingreso" }).click();
+  await expect(page.getByText("Ingreso registrado")).toBeVisible();
+
+  await page.goto("/operaciones/egreso");
+  await page.locator("li a").filter({ hasText: plate }).first().click();
+  await expect(page.getByText("Condición registrada al ingresar")).toHaveCount(0);
+  await expect(page.getByText(/La llave quedó en el vehículo/)).toHaveCount(0);
+
+  await payStay(page, plate);
+});

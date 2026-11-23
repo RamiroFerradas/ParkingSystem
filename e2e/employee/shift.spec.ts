@@ -1,5 +1,14 @@
 import { test, expect } from "@playwright/test";
-import { AUTH, resetShiftAsAdmin, toast, withAdminContext } from "../support/app";
+import {
+  AUTH,
+  createStay,
+  ensureOpenShift,
+  payStay,
+  resetShiftAsAdmin,
+  toast,
+  uniquePlate,
+  withAdminContext,
+} from "../support/app";
 
 /**
  * Cash shifts: the employee manages their own shift (open, close) but cannot
@@ -40,4 +49,25 @@ test("el empleado no puede cerrar el turno que abrió otro usuario", async ({ pa
 
   await page.goto("/administracion/turnos");
   await expect(page.getByText(/Solo .* puede cerrar este turno/)).toBeVisible();
+});
+
+test("cierra el turno con autos adentro avisando el impacto", async ({ page, browser }) => {
+  await resetShiftAsAdmin(browser);
+  const plate = uniquePlate("TC");
+  await createStay(page, plate);
+
+  await page.goto("/administracion/turnos");
+  await page.locator("#contenido").getByRole("button", { name: "Cerrar turno" }).click();
+
+  // The app refuses to silently split the billing: it asks for confirmation.
+  await expect(page.getByText(/Quedan \d+ auto/)).toBeVisible();
+  await expect(page.getByText(/continúan estacionados|siguen estacionados/)).toBeVisible();
+  await page.getByRole("button", { name: "Cerrar turno igual" }).click();
+
+  await expect(toast(page, /Turno cerrado con 1 auto adentro/)).toBeVisible();
+  await expect(page.getByText("No hay turno abierto")).toBeVisible();
+
+  // Cleanup: charge the stay in a fresh shift so the branch keeps its boxes free.
+  await ensureOpenShift(page);
+  await payStay(page, plate);
 });
