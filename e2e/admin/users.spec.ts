@@ -15,6 +15,10 @@ const NEW_PASSWORD = "E2e-User-2027!";
 
 const SIDEBAR = 'nav[aria-label="Menú principal"]';
 
+// This flow opens three sessions (admin + the new user twice) and rotates the
+// password: it legitimately needs more than the default 60s.
+test.setTimeout(180_000);
+
 function accessEditor(page: Page) {
   return page
     .locator("section")
