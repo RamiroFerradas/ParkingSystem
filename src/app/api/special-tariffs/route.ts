@@ -106,10 +106,10 @@ export async function POST(request: Request) {
       [name, start.toISOString(), end.toISOString(), vehicleTypeIds, adjustmentType, adjustmentValue, priority, branchId],
     );
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'special.create', 'special_tariff_period', $2,
-               jsonb_build_object('name', $3::text, 'adjustment', $4::text, 'value', $5::bigint))`,
-      [user.userId, rows[0]!.id, name, adjustmentType, adjustmentValue],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'special.create', 'special_tariff_period', $3,
+               jsonb_build_object('name', $4::text, 'adjustment', $5::text, 'value', $6::bigint))`,
+      [user.userId, branchId, rows[0]!.id, name, adjustmentType, adjustmentValue],
     );
     return NextResponse.json({ ok: true, id: rows[0]!.id }, { status: 201 });
   } catch (err) {
@@ -153,9 +153,9 @@ export async function PATCH(request: Request) {
       );
     }
     await query(
-      `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-       VALUES (gen_random_uuid(), $1, 'special.cancel', 'special_tariff_period', $2, NULL)`,
-      [user.userId, id],
+      `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+       VALUES (gen_random_uuid(), $1, $2, 'special.cancel', 'special_tariff_period', $3, NULL)`,
+      [user.userId, branchId, id],
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

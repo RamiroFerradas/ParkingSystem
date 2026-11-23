@@ -281,9 +281,13 @@ export async function PATCH(request: Request) {
     }
     sets.push("updated_at = now()", "version = version + 1");
     params.push(id);
+    const idParam = params.length;
+    params.push(branchId);
 
     const rows = await query<{ id: string }>(
-      `UPDATE parking_tariffs SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING id`,
+      `UPDATE parking_tariffs SET ${sets.join(", ")}
+        WHERE id = $${idParam} AND branch_id = $${params.length}
+        RETURNING id`,
       params,
     );
     if (rows.length === 0) {

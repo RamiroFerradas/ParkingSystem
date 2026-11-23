@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 import { auditLogsQuerySchema, parseQuery } from "@/lib/schemas/misc";
 
 /** Consulta del registro de auditoría (append-only). Solo admin. */
 
 export async function GET(request: Request) {
-  const { user, error } = await requireUser();
-  if (error) return error;
-  if (!(await hasPermission(user, "audit.read"))) {
-    return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
-  }
+  const { context, error } = await getBranchContextOrFail("audit.read");
+  if (error) return NextResponse.json(error.body, { status: error.status });
 
   const { action, entityType, limit } = parseQuery(request, auditLogsQuerySchema, {
     action: null,
@@ -36,9 +33,10 @@ export async function GET(request: Request) {
          LEFT JOIN profiles pr ON pr.id = a.actor_id
         WHERE ($1::text IS NULL OR a.action ILIKE '%' || $1::text || '%')
           AND ($2::text IS NULL OR a.entity_type = $2::text)
+          AND (a.branch_id = $4::uuid OR a.branch_id IS NULL)
         ORDER BY a.occurred_at DESC
         LIMIT $3`,
-      [action, entityType, limit],
+      [action, entityType, limit, context.branchId],
     );
     return NextResponse.json({ logs: rows });
   } catch (err) {

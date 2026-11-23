@@ -89,8 +89,38 @@ describe("GET /api/users/[id]/permissions", () => {
     expect(await res.json()).toEqual({ error: "Usuario inexistente" });
   });
 
+  it("hides a user outside the active branch from a non-master", async () => {
+    db.query.mockResolvedValue([
+      { id: "user-2", role: "employee", is_active: true, in_branch: false },
+    ]);
+
+    const res = await GET(
+      new Request("http://localhost/api/users/user-2/permissions"),
+      params("user-2"),
+    );
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Usuario inexistente" });
+  });
+
+  it("lets a master read a user outside the active branch", async () => {
+    session.getSessionUser.mockResolvedValue(makeUser({ isMaster: true }));
+    db.query.mockResolvedValue([
+      { id: "user-2", role: "employee", is_active: true, in_branch: false },
+    ]);
+
+    const res = await GET(
+      new Request("http://localhost/api/users/user-2/permissions"),
+      params("user-2"),
+    );
+
+    expect(res.status).toBe(200);
+  });
+
   it("returns inherited values, overrides and the effective value per section", async () => {
-    db.query.mockResolvedValue([{ id: "user-2", role: "employee", is_active: true }]);
+    db.query.mockResolvedValue([
+      { id: "user-2", role: "employee", is_active: true, in_branch: true },
+    ]);
     permissions.loadPermissionMatrix.mockResolvedValue(
       new Map([["employee:tariff.manage", true]]),
     );
@@ -235,8 +265,8 @@ describe("PUT /api/users/[id]/permissions", () => {
 
   it("blocks removing your own user.manage permission", async () => {
     const client = fakeClient((sql) => {
-      if (sql.includes("FROM profiles WHERE id")) {
-        return { rows: [{ id: "user-1", role: "admin", is_active: true }] };
+      if (sql.includes("COALESCE(ub.role")) {
+        return { rows: [{ id: "user-1", role: "admin", is_active: true, in_branch: true }] };
       }
       if (sql.includes("FROM role_permissions")) {
         return { rows: [{ role: "admin", permission: "*", allowed: true }] };
@@ -259,8 +289,8 @@ describe("PUT /api/users/[id]/permissions", () => {
   it("blocks leaving the system without an active user manager", async () => {
     const client = fakeClient((sql) => {
       if (sql.includes("up.allowed")) return { rows: [] };
-      if (sql.includes("FROM profiles WHERE id")) {
-        return { rows: [{ id: "user-2", role: "employee", is_active: true }] };
+      if (sql.includes("COALESCE(ub.role")) {
+        return { rows: [{ id: "user-2", role: "employee", is_active: true, in_branch: true }] };
       }
       if (sql.includes("FROM role_permissions")) {
         return { rows: [{ role: "employee", permission: "user.manage", allowed: true }] };
@@ -282,8 +312,8 @@ describe("PUT /api/users/[id]/permissions", () => {
 
   it("upserts overrides, audits the before/after state and commits", async () => {
     const client = fakeClient((sql) => {
-      if (sql.includes("FROM profiles WHERE id")) {
-        return { rows: [{ id: "user-2", role: "employee", is_active: true }] };
+      if (sql.includes("COALESCE(ub.role")) {
+        return { rows: [{ id: "user-2", role: "employee", is_active: true, in_branch: true }] };
       }
       if (sql.includes("FROM role_permissions")) {
         return { rows: [{ role: "employee", permission: "tariff.manage", allowed: true }] };
@@ -318,6 +348,7 @@ describe("PUT /api/users/[id]/permissions", () => {
     );
     expect(audit?.[1]).toEqual([
       "user-1",
+      "branch-1",
       "user-2",
       JSON.stringify({ "tariff.manage": null, "audit.read": null }),
       JSON.stringify({ "tariff.manage": false, "audit.read": true }),
@@ -326,8 +357,8 @@ describe("PUT /api/users/[id]/permissions", () => {
 
   it("deletes the override when allowed is null", async () => {
     const client = fakeClient((sql) => {
-      if (sql.includes("FROM profiles WHERE id")) {
-        return { rows: [{ id: "user-2", role: "employee", is_active: true }] };
+      if (sql.includes("COALESCE(ub.role")) {
+        return { rows: [{ id: "user-2", role: "employee", is_active: true, in_branch: true }] };
       }
       return { rows: [] };
     });

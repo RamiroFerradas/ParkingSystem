@@ -17,17 +17,23 @@ export async function GET(request: Request) {
 
   const { q, limit } = parseQuery(request, vehiclesQuerySchema, { q: "", limit: 100 });
 
+  // El catálogo es global; el historial se cuenta solo en la sucursal activa.
+  const branchId = user.branchId;
+  if (!branchId) {
+    return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
+  }
+
   try {
     const rows = await query(
       `SELECT v.id, v.plate, v.plate_is_placeholder, vt.name AS type_name, v.notes,
-              (SELECT count(*)::int FROM parking_sessions s WHERE s.vehicle_id = v.id) AS sessions_count,
-              (SELECT max(s.entry_at)::text FROM parking_sessions s WHERE s.vehicle_id = v.id) AS last_seen_at
+              (SELECT count(*)::int FROM parking_sessions s WHERE s.vehicle_id = v.id AND s.branch_id = $3::uuid) AS sessions_count,
+              (SELECT max(s.entry_at)::text FROM parking_sessions s WHERE s.vehicle_id = v.id AND s.branch_id = $3::uuid) AS last_seen_at
          FROM vehicles v
          JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
         WHERE ($1::text = '' OR v.plate ILIKE '%' || $1::text || '%' OR v.notes ILIKE '%' || $1::text || '%')
         ORDER BY last_seen_at DESC NULLS LAST, v.plate
         LIMIT $2`,
-      [q, limit],
+      [q, limit, branchId],
     );
     return NextResponse.json({ vehicles: rows });
   } catch (err) {

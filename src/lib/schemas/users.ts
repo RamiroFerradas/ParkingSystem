@@ -21,6 +21,14 @@ export function isRole(value: unknown): value is Role {
   return typeof value === "string" && ROLE_SET.has(value);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Narrows an untrusted payload value to a canonical UUID string. */
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+
 /** Trimmed string; absence or any other JSON type counts as `""`. */
 const trimmedOrEmpty = z.preprocess(
   (value) => (typeof value === "string" ? value.trim() : ""),
@@ -39,6 +47,32 @@ const optionalString = z.preprocess(
   z.string().optional(),
 );
 
+/** One branch membership as it arrives; the route validates its contents. */
+export interface MembershipPayload {
+  branchId?: unknown;
+  role?: unknown;
+}
+
+/**
+ * Tolerates a missing or non-array `memberships`: it becomes "not provided"
+ * so a legacy client keeps the single-branch behavior. Items stay raw so the
+ * route can name the offending branch or role instead of failing the whole
+ * body with a generic message.
+ */
+const membershipItemSchema = z.preprocess(
+  (value) =>
+    typeof value === "object" && value !== null && !Array.isArray(value) ? value : {},
+  z.object({
+    branchId: z.unknown().optional(),
+    role: z.unknown().optional(),
+  }),
+);
+
+const membershipsSchema = z.preprocess(
+  (value) => (Array.isArray(value) ? value : undefined),
+  z.array(membershipItemSchema).optional(),
+);
+
 /** `POST /api/users`. Normalization is kept; the rules stay in the route. */
 export const createUserSchema = z.object({
   email: z.preprocess(
@@ -49,6 +83,8 @@ export const createUserSchema = z.object({
   /** Left raw so the route can tell "missing" from "unknown role". */
   role: z.unknown().optional(),
   password: stringOrEmpty,
+  /** Optional multi-branch assignments; absent keeps the legacy single role. */
+  memberships: membershipsSchema,
 });
 
 export type CreateUserPayload = z.infer<typeof createUserSchema>;
@@ -59,6 +95,8 @@ export const updateUserSchema = z.object({
   isActive: z.unknown().optional(),
   role: z.unknown().optional(),
   password: optionalString,
+  /** Master-only: edit the role in a branch other than the active one. */
+  branchId: z.unknown().optional(),
 });
 
 export type UpdateUserPayload = z.infer<typeof updateUserSchema>;

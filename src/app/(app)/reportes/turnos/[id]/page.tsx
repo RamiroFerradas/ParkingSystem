@@ -1,5 +1,4 @@
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { formatARS, formatDate, formatElapsed, formatTime } from "@/lib/format";
@@ -22,9 +21,10 @@ export default async function TurnoDetallePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ from?: string; to?: string; q?: string }>;
 }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "reports.read"))) {
+  const context = await getBranchContext();
+  if (!context) redirect("/login");
+  if (!context.branchId) redirect("/seleccionar-sucursal");
+  if (!context.can("reports.read")) {
     return <AccessDenied message="Requiere permiso de reportes (supervisor o administrador)." />;
   }
 
@@ -37,7 +37,7 @@ export default async function TurnoDetallePage({
   const plateQuery = (sp.q ?? "").trim();
   const hourFilter = from !== null && to !== null;
 
-  const detail = await loadShiftDetail(id, { from, to, plateQuery });
+  const detail = await loadShiftDetail(id, context.branchId, { from, to, plateQuery });
   if (!detail) notFound();
 
   const { shift, summary, methods, sessions } = detail;

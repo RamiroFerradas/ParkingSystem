@@ -1,6 +1,6 @@
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 import { parseQuery, reportExportQuerySchema } from "@/lib/schemas/misc";
 
 /** CSV de recaudación diaria del período, para planillas. */
@@ -17,11 +17,8 @@ const PERIODS: { key: string; where: (col: string) => string }[] = [
 ];
 
 export async function GET(request: Request) {
-  const { user, error } = await requireUser();
-  if (error) return error;
-  if (!(await hasPermission(user, "reports.read"))) {
-    return new Response("No tenés permiso", { status: 403 });
-  }
+  const { context, error } = await getBranchContextOrFail("reports.read");
+  if (error) return new Response(error.body.error, { status: error.status });
 
   const { p } = parseQuery(request, reportExportQuerySchema, {});
   const period = PERIODS.find((candidate) => candidate.key === p) ?? PERIODS[2]!;
@@ -34,6 +31,7 @@ export async function GET(request: Request) {
                 COALESCE(sum(p.amount_charged_cents), 0)::text AS collected
            FROM payments p
           WHERE p.paid_at >= now() - interval '1 year'
+            AND p.branch_id = $1::uuid
           GROUP BY day
        ),
        m AS (
@@ -43,6 +41,7 @@ export async function GET(request: Request) {
              FROM payments p
              JOIN payment_methods m ON m.id = p.method_id
             WHERE p.paid_at >= now() - interval '1 year'
+              AND p.branch_id = $1::uuid
             GROUP BY day, m.name
          ) x
         GROUP BY x.day
@@ -51,6 +50,7 @@ export async function GET(request: Request) {
          FROM d LEFT JOIN m ON m.day = d.day
         WHERE ${period.where("d.day")}
         ORDER BY d.day DESC`,
+      [context.branchId],
     );
     const header = "dia,cobros,recaudado_cents,por_medio\n";
     const body = rows

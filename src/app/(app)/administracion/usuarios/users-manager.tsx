@@ -8,19 +8,46 @@ import { Alert } from "@/components/ui/alert";
 import { btnCls, inputCls } from "@/lib/ui-classes";
 import { PermissionsEditor } from "./permissions-editor";
 
+export interface ManagedUserBranch {
+  id: string;
+  name: string;
+  role: string;
+}
+
 export interface ManagedUser {
   id: string;
   full_name: string;
   email: string;
   role: string;
   is_active: boolean;
+  /** Memberships with their role in each branch. */
+  branches?: ManagedUserBranch[];
 }
+
+export interface BranchOption {
+  id: string;
+  name: string;
+}
+
+const ROLE_OPTIONS = [
+  { value: "employee", label: "Empleado" },
+  { value: "supervisor", label: "Supervisor" },
+  { value: "admin", label: "Administrador" },
+];
 
 export function UsersManager({
   currentUserId,
+  currentBranchId = null,
+  currentBranchName = null,
+  isMaster = false,
+  branches = [],
   users,
 }: {
   currentUserId: string;
+  currentBranchId?: string | null;
+  currentBranchName?: string | null;
+  isMaster?: boolean;
+  branches?: BranchOption[];
   users: ManagedUser[];
 }) {
   const router = useRouter();
@@ -37,10 +64,34 @@ export function UsersManager({
   const [role, setRole] = useState("employee");
   const [password, setPassword] = useState("");
 
+  // Sucursales del alta: el maestro elige varias; el resto queda fijo a la
+  // sucursal activa. El rol de la sucursal actual usa el selector de arriba.
+  const [selectedBranches, setSelectedBranches] = useState<Set<string>>(() => {
+    const next = new Set<string>();
+    if (
+      isMaster &&
+      currentBranchId &&
+      branches.some((branch) => branch.id === currentBranchId)
+    ) {
+      next.add(currentBranchId);
+    }
+    return next;
+  });
+  const [branchRoles, setBranchRoles] = useState<Record<string, string>>(() => {
+    const next: Record<string, string> = {};
+    for (const branch of branches) next[branch.id] = "employee";
+    return next;
+  });
+
   const activeAdmins = useMemo(
     () => list.filter((u) => u.role === "admin" && u.is_active).length,
     [list],
   );
+
+  const branchRequired = isMaster || currentBranchId !== null;
+  const hasBranchSelection = isMaster
+    ? selectedBranches.size > 0
+    : currentBranchId !== null;
 
   async function call(url: string, method: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -63,28 +114,71 @@ export function UsersManager({
   }
 
   async function createUser() {
+    const selected = isMaster
+      ? branches.filter((branch) => selectedBranches.has(branch.id))
+      : [];
+    const memberships = isMaster
+      ? selected.map((branch) => ({
+          branchId: branch.id,
+          role: branchRoles[branch.id] ?? "employee",
+        }))
+      : currentBranchId
+        ? [{ branchId: currentBranchId, role }]
+        : undefined;
+    // El rol de la sucursal actual (o el primero) viaja también en `role` para
+    // los clientes viejos que todavía no mandan `memberships`.
+    const currentRole = isMaster
+      ? (memberships?.find((m) => m.branchId === currentBranchId)?.role ??
+        memberships?.[0]?.role ??
+        role)
+      : role;
+
     const created = await call("/api/users", "POST", {
       email,
       fullName: name,
-      role,
+      role: currentRole,
       password,
+      ...(memberships ? { memberships } : {}),
     });
     if (!created?.user) return;
-    setList((prev) => [...prev, created.user]);
+    setList((prev) => [...prev, created.user as ManagedUser]);
     setEmail("");
     setName("");
     setPassword("");
+    if (isMaster) {
+      setSelectedBranches(
+        new Set(
+          currentBranchId && branches.some((branch) => branch.id === currentBranchId)
+            ? [currentBranchId]
+            : [],
+        ),
+      );
+      setBranchRoles(
+        Object.fromEntries(branches.map((branch) => [branch.id, "employee"])),
+      );
+    }
   }
 
   async function patchUser(id: string, body: Record<string, unknown>) {
     const r = await call(`/api/users/${id}`, "PATCH", body);
     if (!r) return;
+    const nextRole = body.role === undefined ? null : String(body.role);
     setList((prev) =>
-      prev.map((u) =>
-        u.id === id
-          ? { ...u, is_active: body.isActive === undefined ? u.is_active : Boolean(body.isActive), role: body.role === undefined ? u.role : String(body.role) }
-          : u,
-      ),
+      prev.map((u) => {
+        if (u.id !== id) return u;
+        const updated: ManagedUser = {
+          ...u,
+          is_active:
+            body.isActive === undefined ? u.is_active : Boolean(body.isActive),
+          role: nextRole ?? u.role,
+        };
+        if (nextRole && currentBranchId) {
+          updated.branches = (u.branches ?? []).map((branch) =>
+            branch.id === currentBranchId ? { ...branch, role: nextRole } : branch,
+          );
+        }
+        return updated;
+      }),
     );
     router.refresh();
   }
@@ -146,11 +240,15 @@ export function UsersManager({
             onChange={(e) => setName(e.target.value)}
             maxLength={80}
           />
-          <select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="employee">Empleado</option>
-            <option value="supervisor">Supervisor</option>
-            <option value="admin">Administrador</option>
-          </select>
+          {!isMaster && (
+            <select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>
+              {ROLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             className={inputCls}
             type="password"
@@ -160,9 +258,81 @@ export function UsersManager({
             maxLength={72}
           />
         </div>
+
+        {/* Sucursales del alta */}
+        <div className="mt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Sucursales
+          </p>
+          {isMaster ? (
+            <div className="mt-2 space-y-2">
+              {branches.map((branch) => {
+                const checked = selectedBranches.has(branch.id);
+                return (
+                  <div key={branch.id} className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm text-neutral-300">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-neutral-700 bg-neutral-950"
+                        checked={checked}
+                        onChange={(e) =>
+                          setSelectedBranches((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(branch.id);
+                            else next.delete(branch.id);
+                            return next;
+                          })
+                        }
+                      />
+                      {branch.name}
+                      {branch.id === currentBranchId && (
+                        <span className="text-xs text-neutral-500">(actual)</span>
+                      )}
+                    </label>
+                    <select
+                      className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 disabled:opacity-40"
+                      value={branchRoles[branch.id] ?? "employee"}
+                      disabled={!checked}
+                      onChange={(e) =>
+                        setBranchRoles((prev) => ({
+                          ...prev,
+                          [branch.id]: e.target.value,
+                        }))
+                      }
+                      aria-label={`Rol en ${branch.name}`}
+                    >
+                      {ROLE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+              {branches.length === 0 && (
+                <p className="text-xs text-neutral-500">No hay sucursales activas.</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-neutral-300">
+              {currentBranchName ?? currentBranchId ?? "Sucursal actual"}
+              <span className="ml-2 text-xs text-neutral-500">
+                El rol se elige en el formulario.
+              </span>
+            </p>
+          )}
+        </div>
+
         <button
-          className={`${btnCls} mt-2 disabled:opacity-40`}
-          disabled={busy || !email.trim() || !name.trim() || password.length < 8}
+          className={`${btnCls} mt-3 disabled:opacity-40`}
+          disabled={
+            busy ||
+            !email.trim() ||
+            !name.trim() ||
+            password.length < 8 ||
+            (branchRequired && !hasBranchSelection)
+          }
           onClick={createUser}
         >
           {busy ? "Creando…" : "Crear usuario"}
@@ -184,22 +354,42 @@ export function UsersManager({
             {list.map((u) => {
               const self = u.id === currentUserId;
               const lastAdmin = u.role === "admin" && u.is_active && activeAdmins === 1;
+              // El maestro ve usuarios de otras sucursales: el selector de rol
+              // sólo aplica a quienes son miembros de la sucursal activa.
+              const inCurrentBranch =
+                !currentBranchId ||
+                !u.branches ||
+                u.branches.some((branch) => branch.id === currentBranchId);
+              const roleDisabled = busy || self || lastAdmin || (isMaster && !inCurrentBranch);
               return (
                 <tr key={u.id} className={u.is_active ? "" : "opacity-50"}>
                   <td className="px-4 py-2.5">
                     <p className="font-medium text-neutral-200">{u.full_name}</p>
                     <p className="text-xs text-neutral-500">{u.email}</p>
+                    {u.branches && u.branches.length > 0 && (
+                      <p className="text-xs text-neutral-500">
+                        Sucursales:{" "}
+                        {u.branches
+                          .map(
+                            (branch) =>
+                              `${branch.name} (${ROLE_LABELS[branch.role] ?? branch.role})`,
+                          )
+                          .join(", ")}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <select
                       className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200"
                       value={u.role}
-                      disabled={busy || self || lastAdmin}
+                      disabled={roleDisabled}
                       onChange={(e) => patchUser(u.id, { role: e.target.value })}
                     >
-                      <option value="employee">Empleado</option>
-                      <option value="supervisor">Supervisor</option>
-                      <option value="admin">Administrador</option>
+                      {ROLE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-4 py-2.5">

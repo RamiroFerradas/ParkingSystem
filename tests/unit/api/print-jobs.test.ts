@@ -73,7 +73,7 @@ describe("GET /api/print-jobs", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ jobs: [job] });
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual([null]);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual([null, "branch-1"]);
   });
 
   it("filters by a valid status", async () => {
@@ -81,7 +81,7 @@ describe("GET /api/print-jobs", () => {
 
     await get("?status=pending");
 
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["pending"]);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["pending", "branch-1"]);
   });
 
   it("rejects an unknown status with 400", async () => {
@@ -164,7 +164,7 @@ describe("POST /api/print-jobs", () => {
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual({ ok: true, id: "job-2" });
     expect(mockQuery.mock.calls[2]?.[0]).toContain("ticket.reprint");
-    expect(mockQuery.mock.calls[2]?.[1]).toEqual(["user-1", "session-1"]);
+    expect(mockQuery.mock.calls[2]?.[1]).toEqual(["user-1", "branch-1", "session-1"]);
   });
 
   it("rejects an unparsable body with 400", async () => {

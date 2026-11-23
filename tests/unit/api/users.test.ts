@@ -64,6 +64,29 @@ describe("GET /api/users", () => {
     expect(await res.json()).toEqual({ users: [created] });
   });
 
+  it("scopes a non-master's list to the active branch", async () => {
+    db.query.mockResolvedValue([created]);
+
+    await GET();
+
+    const [sql, params] = db.query.mock.calls[0]!;
+    expect(String(sql)).toContain(
+      "JOIN user_branches ub ON ub.user_id = p.id AND ub.branch_id = $1",
+    );
+    expect(params).toEqual(["branch-1"]);
+  });
+
+  it("lists every user for a master", async () => {
+    session.getSessionUser.mockResolvedValue(makeUser({ isMaster: true }));
+    db.query.mockResolvedValue([created]);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const [sql] = db.query.mock.calls[0]!;
+    expect(String(sql)).toContain("LEFT JOIN user_branches ub ON ub.user_id = p.id");
+  });
+
   it("maps a database error to a 400 with the driver message", async () => {
     db.query.mockRejectedValue(new Error("relation does not exist"));
 
@@ -157,7 +180,13 @@ describe("POST /api/users", () => {
     const res = await POST(jsonRequest("http://localhost/api/users", "POST", payload));
 
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ ok: true, user: created });
+    expect(await res.json()).toEqual({
+      ok: true,
+      user: {
+        ...created,
+        branches: [{ id: "branch-1", name: "Centro", role: "employee" }],
+      },
+    });
     expect(argon.hash).toHaveBeenCalledWith("supersecret");
     // A1: the audit insert now runs inside the same transaction as the profile
     // and the credentials, so COMMIT is the last statement again.
@@ -183,8 +212,131 @@ describe("POST /api/users", () => {
     const auditInsert = client.query.mock.calls.find(([sql]) =>
       String(sql).includes("INSERT INTO audit_logs"),
     );
-    expect(auditInsert?.[1]).toEqual(["user-1", "new-user", "nuevo@example.com", "employee"]);
+    expect(auditInsert?.[1]).toEqual([
+      "user-1",
+      "branch-1",
+      "new-user",
+      "nuevo@example.com",
+      "employee",
+      JSON.stringify([{ branchId: "branch-1", role: "employee" }]),
+    ]);
     expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it("creates the user in every branch when a master sends memberships", async () => {
+    const branchA = "11111111-1111-1111-1111-111111111111";
+    const branchB = "22222222-2222-2222-2222-222222222222";
+    session.getSessionUser.mockResolvedValue(
+      makeUser({ isMaster: true, branchId: branchA, branchName: "Centro" }),
+    );
+    db.query.mockResolvedValue([
+      { id: branchA, name: "Centro" },
+      { id: branchB, name: "Norte" },
+    ]);
+    const client = fakeClient((sql) => {
+      if (sql.includes("INSERT INTO profiles")) return { rows: [created] };
+      return { rows: [] };
+    });
+    db.pool.connect.mockResolvedValue(client);
+
+    const res = await POST(
+      jsonRequest("http://localhost/api/users", "POST", {
+        ...payload,
+        role: "employee",
+        memberships: [
+          { branchId: branchA, role: "admin" },
+          { branchId: branchB, role: "employee" },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({
+      ok: true,
+      user: {
+        ...created,
+        role: "admin",
+        branches: [
+          { id: branchA, name: "Centro", role: "admin" },
+          { id: branchB, name: "Norte", role: "employee" },
+        ],
+      },
+    });
+    const membershipInserts = client.query.mock.calls.filter(([sql]) =>
+      String(sql).includes("INSERT INTO user_branches"),
+    );
+    expect(membershipInserts).toHaveLength(2);
+    expect(membershipInserts[0]?.[1]).toEqual(["new-user", branchA, "admin"]);
+    expect(membershipInserts[1]?.[1]).toEqual(["new-user", branchB, "employee"]);
+    // `profiles.role` conserva el rol de la sucursal activa.
+    const profileInsert = client.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO profiles"),
+    );
+    expect(profileInsert?.[1]).toEqual(["nuevo@example.com", "Nuevo Empleado", "admin"]);
+  });
+
+  it("rejects another branch for a non-master", async () => {
+    const branchA = "11111111-1111-1111-1111-111111111111";
+    const branchB = "22222222-2222-2222-2222-222222222222";
+    session.getSessionUser.mockResolvedValue(
+      makeUser({ branchId: branchA, branchName: "Centro" }),
+    );
+
+    const res = await POST(
+      jsonRequest("http://localhost/api/users", "POST", {
+        ...payload,
+        memberships: [
+          { branchId: branchA, role: "employee" },
+          { branchId: branchB, role: "employee" },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "Solo podés asignar la sucursal activa",
+    });
+  });
+
+  it("rejects duplicate branchIds", async () => {
+    const branchA = "11111111-1111-1111-1111-111111111111";
+    session.getSessionUser.mockResolvedValue(
+      makeUser({ branchId: branchA, branchName: "Centro" }),
+    );
+
+    const res = await POST(
+      jsonRequest("http://localhost/api/users", "POST", {
+        ...payload,
+        memberships: [
+          { branchId: branchA, role: "employee" },
+          { branchId: branchA, role: "supervisor" },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Sucursal duplicada" });
+  });
+
+  it("rejects a branch that does not exist or is inactive", async () => {
+    const branchA = "11111111-1111-1111-1111-111111111111";
+    const branchB = "22222222-2222-2222-2222-222222222222";
+    session.getSessionUser.mockResolvedValue(
+      makeUser({ isMaster: true, branchId: branchA, branchName: "Centro" }),
+    );
+    db.query.mockResolvedValue([]);
+
+    const res = await POST(
+      jsonRequest("http://localhost/api/users", "POST", {
+        ...payload,
+        memberships: [{ branchId: branchB, role: "employee" }],
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Alguna sucursal no existe o está inactiva",
+    });
   });
 
   it("returns 409 on a unique email violation and rolls back", async () => {

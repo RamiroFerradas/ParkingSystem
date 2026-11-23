@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db/client";
-import { requireUser, rpcErrorResponse } from "@/lib/api/guard";
-import { hasPermission } from "@/lib/auth/permissions";
+import { rpcErrorResponse } from "@/lib/api/guard";
+import { getBranchContextOrFail } from "@/lib/auth/context";
 import { parseQuery, reportSummaryQuerySchema } from "@/lib/schemas/misc";
 
 /** Reportes de recaudación. Requiere reports.read (supervisor+). */
@@ -28,11 +28,8 @@ export interface SummaryTotals {
 }
 
 export async function GET(request: Request) {
-  const { user, error } = await requireUser();
-  if (error) return error;
-  if (!(await hasPermission(user, "reports.read"))) {
-    return NextResponse.json({ error: "No tenés permiso" }, { status: 403 });
-  }
+  const { context, error } = await getBranchContextOrFail("reports.read");
+  if (error) return NextResponse.json(error.body, { status: error.status });
 
   const { days } = parseQuery(request, reportSummaryQuerySchema, { days: 30 });
 
@@ -44,8 +41,9 @@ export async function GET(request: Request) {
                 coalesce(sum(p.amount_charged_cents), 0)::text AS collected
            FROM payments p
           WHERE p.paid_at >= now() - ($1::text || ' days')::interval
+            AND p.branch_id = $2::uuid
           GROUP BY day ORDER BY day DESC`,
-        [String(days)],
+        [String(days), context.branchId],
       ),
       query<MethodRow>(
         `SELECT m.name AS method_name,
@@ -54,15 +52,17 @@ export async function GET(request: Request) {
            FROM payments p
            JOIN payment_methods m ON m.id = p.method_id
           WHERE p.paid_at >= now() - ($1::text || ' days')::interval
+            AND p.branch_id = $2::uuid
           GROUP BY m.name ORDER BY sum(p.amount_charged_cents) DESC`,
-        [String(days)],
+        [String(days), context.branchId],
       ),
       query<SummaryTotals>(
         `SELECT count(*)::text AS sessions,
                 coalesce(sum(p.amount_charged_cents), 0)::text AS collected
            FROM payments p
-          WHERE p.paid_at >= now() - ($1::text || ' days')::interval`,
-        [String(days)],
+          WHERE p.paid_at >= now() - ($1::text || ' days')::interval
+            AND p.branch_id = $2::uuid`,
+        [String(days), context.branchId],
       ),
     ]);
     return NextResponse.json({ days, daily, byMethod, totals: totals[0] ?? { sessions: "0", collected: "0" } });

@@ -21,6 +21,18 @@ test("cobra una estadía con medio de pago y libera el box", async ({ page }) =>
 });
 
 test("el comprobante se puede reimprimir desde el historial", async ({ page }) => {
+  // The print client goes through Web Serial. In a headless run the API is
+  // absent and the ticket falls back to the queue; in a headed run Chrome opens
+  // the port picker and blocks the action. Pinning the API as absent exercises
+  // the same queue path everywhere, which is what this test is about.
+  await page.addInitScript(() => {
+    try {
+      Object.defineProperty(navigator, "serial", { value: undefined, configurable: true });
+    } catch {
+      /* noop */
+    }
+  });
+
   const plate = uniquePlate("RP");
   await createStay(page, plate);
   await payStay(page, plate, "Débito");
@@ -28,15 +40,15 @@ test("el comprobante se puede reimprimir desde el historial", async ({ page }) =
   await page.goto("/operaciones/historial");
   await page.getByLabel("Patente").fill(plate);
   await page.getByRole("button", { name: "Filtrar" }).click();
-
   await expect(page.getByText(plate).filter({ visible: true }).first()).toBeVisible();
-  const reprint = page.getByRole("button", { name: "Reimprimir" }).first();
-  await expect(reprint).toBeVisible();
-  await reprint.click();
 
-  // Either the print client answers or the ticket stays queued with a notice:
-  // both outcomes prove the action reached the print pipeline.
-  await expect(
-    page.getByText(/No se pudo reimprimir|Reimprimiendo|en cola|Impreso/).first(),
-  ).toBeVisible();
+  // The reprint must reach the print pipeline (it enqueues the job first).
+  const enqueued = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/print-jobs") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Reimprimir" }).first().click();
+  expect((await enqueued).ok()).toBe(true);
+
+  await expect(page.getByText(/No se pudo reimprimir el ticket/)).toBeVisible();
 });

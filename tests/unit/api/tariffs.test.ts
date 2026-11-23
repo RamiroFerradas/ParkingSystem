@@ -373,7 +373,7 @@ describe("PATCH /api/tariffs", () => {
     );
     expect(String(update?.[0])).toContain("amount_cents = $1");
     expect(String(update?.[0])).toContain("is_active = $2");
-    expect(update?.[1]).toEqual([750_000, false, "t-1"]);
+    expect(update?.[1]).toEqual([750_000, false, "t-1", "branch-1"]);
     expect(
       db.query.mock.calls.some(([sql]) => String(sql).includes("'tariff.update'")),
     ).toBe(true);

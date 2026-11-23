@@ -48,14 +48,14 @@ describe("GET /api/vehicles", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ vehicles: [vehicle] });
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["", 100]);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["", 100, "branch-1"]);
     expect(mockPermission).toHaveBeenCalledWith(user, "vehicle.read_all");
   });
 
   it("trims the search term and passes it to the query", async () => {
     await get("?q=%20ab12%20");
 
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["ab12", 100]);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["ab12", 100, "branch-1"]);
   });
 
   it("clamps the limit between 1 and 200", async () => {

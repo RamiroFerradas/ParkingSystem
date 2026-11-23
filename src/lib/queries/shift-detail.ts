@@ -56,10 +56,12 @@ export interface ShiftDetail {
 
 /**
  * Cabecera, resumen, medios de pago y movimientos de un turno.
- * Devuelve `null` cuando el turno no existe (la página decide el `notFound()`).
+ * Devuelve `null` cuando el turno no existe o pertenece a otra sucursal
+ * (la página decide el `notFound()`).
  */
 export async function loadShiftDetail(
   id: string,
+  branchId: string,
   filters: ShiftDetailFilters,
 ): Promise<ShiftDetail | null> {
   const headers = await query<ShiftHeader>(
@@ -76,8 +78,8 @@ export async function loadShiftDetail(
        FROM cash_shifts cs
        JOIN profiles po ON po.id = cs.opened_by
        LEFT JOIN profiles pc ON pc.id = cs.closed_by
-      WHERE cs.id = $1`,
-    [id],
+      WHERE cs.id = $1 AND cs.branch_id = $2::uuid`,
+    [id, branchId],
   );
   const shift = headers[0];
   if (!shift) return null;
@@ -86,21 +88,21 @@ export async function loadShiftDetail(
 
   const [summaryRows, methods, sessions] = await Promise.all([
     query<ShiftSummary>(
-      `SELECT (SELECT count(*) FROM parking_sessions WHERE shift_id = $1)::text AS entered,
-              (SELECT count(*) FROM parking_sessions WHERE shift_id = $1 AND status = 'open')::text AS still_open,
-              (SELECT count(*) FROM payments WHERE shift_id = $1)::text AS paid_count,
-              (SELECT COALESCE(sum(amount_charged_cents), 0) FROM payments WHERE shift_id = $1)::text AS collected`,
-      [id],
+      `SELECT (SELECT count(*) FROM parking_sessions WHERE shift_id = $1 AND branch_id = $2::uuid)::text AS entered,
+              (SELECT count(*) FROM parking_sessions WHERE shift_id = $1 AND branch_id = $2::uuid AND status = 'open')::text AS still_open,
+              (SELECT count(*) FROM payments WHERE shift_id = $1 AND branch_id = $2::uuid)::text AS paid_count,
+              (SELECT COALESCE(sum(amount_charged_cents), 0) FROM payments WHERE shift_id = $1 AND branch_id = $2::uuid)::text AS collected`,
+      [id, branchId],
     ),
     query<ShiftMethodRow>(
       `SELECT pm.name,
               COALESCE(sum(p.amount_charged_cents), 0)::text AS total,
               count(p.id)::text AS payments
          FROM payment_methods pm
-         LEFT JOIN payments p ON p.method_id = pm.id AND p.shift_id = $1
+         LEFT JOIN payments p ON p.method_id = pm.id AND p.shift_id = $1 AND p.branch_id = $2::uuid
         GROUP BY pm.name, pm.sort_order
         ORDER BY pm.sort_order`,
-      [id],
+      [id, branchId],
     ),
     query<ShiftSessionRow>(
       `SELECT s.id,
@@ -117,14 +119,15 @@ export async function loadShiftDetail(
          JOIN vehicles v      ON v.id = s.vehicle_id
          JOIN vehicle_types vt ON vt.id = s.vehicle_type_id
          JOIN parking_boxes b ON b.id = s.box_id
-         LEFT JOIN payments p ON p.session_id = s.id
+         LEFT JOIN payments p ON p.session_id = s.id AND p.branch_id = $2::uuid
          LEFT JOIN payment_methods pm ON pm.id = p.method_id
         WHERE s.shift_id = $1
-          AND ($2::int IS NULL OR $3::int IS NULL
-               OR extract(hour FROM s.entry_at AT TIME ZONE '${TZ}')::int BETWEEN $2 AND $3)
-          AND ($4::text IS NULL OR v.plate ILIKE '%' || $4 || '%')
+          AND s.branch_id = $2::uuid
+          AND ($3::int IS NULL OR $4::int IS NULL
+               OR extract(hour FROM s.entry_at AT TIME ZONE '${TZ}')::int BETWEEN $3 AND $4)
+          AND ($5::text IS NULL OR v.plate ILIKE '%' || $5 || '%')
         ORDER BY s.entry_at DESC`,
-      [id, hourFilter ? filters.from : null, hourFilter ? filters.to : null, filters.plateQuery || null],
+      [id, branchId, hourFilter ? filters.from : null, hourFilter ? filters.to : null, filters.plateQuery || null],
     ),
   ]);
 

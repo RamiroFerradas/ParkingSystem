@@ -1,6 +1,5 @@
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
 import { redirect } from "next/navigation";
 import { formatARS } from "@/lib/format";
 import Link from "next/link";
@@ -32,11 +31,13 @@ export default async function BoxesReportPage({
 }: {
   searchParams: Promise<{ m?: string; page?: string }>;
 }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "reports.read"))) {
+  const context = await getBranchContext();
+  if (!context) redirect("/login");
+  if (!context.branchId) redirect("/seleccionar-sucursal");
+  if (!context.can("reports.read")) {
     return <AccessDenied message="Requiere permiso de reportes (supervisor o administrador)." />;
   }
+  const branchId = context.branchId;
 
   const params = await searchParams;
   const month = params.m && MONTH_RE.test(params.m) ? params.m : currentMonth();
@@ -48,8 +49,8 @@ export default async function BoxesReportPage({
             count(DISTINCT s.box_id)::text AS boxes,
             COALESCE(sum(s.final_amount_cents), 0)::text AS billed
        FROM parking_sessions s
-      WHERE s.status <> 'annulled' AND ${range}`,
-    [month],
+      WHERE s.status <> 'annulled' AND s.branch_id = $2::uuid AND ${range}`,
+    [month, branchId],
   );
   const summary = totals[0] ?? { movements: "0", boxes: "0", billed: "0" };
 
@@ -66,11 +67,11 @@ export default async function BoxesReportPage({
             COALESCE(sum(s.final_amount_cents), 0)::text AS billed_cents
        FROM parking_sessions s
        JOIN parking_boxes b ON b.id = s.box_id
-      WHERE s.status <> 'annulled' AND ${range}
+      WHERE s.status <> 'annulled' AND s.branch_id = $2::uuid AND ${range}
       GROUP BY b.id, b.number, b.sector
       ORDER BY count(*) DESC, COALESCE(sum(s.final_amount_cents), 0) DESC, b.number
-      LIMIT $2 OFFSET $3`,
-    [month, PAGE_SIZE, offset],
+      LIMIT $3 OFFSET $4`,
+    [month, branchId, PAGE_SIZE, offset],
   );
 
   const totalMovements = Number(summary.movements);

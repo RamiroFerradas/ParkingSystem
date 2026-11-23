@@ -172,10 +172,11 @@ describe("PATCH /api/users/[id]", () => {
     ).toBe(true);
   });
 
-  it("updates the role and audits it", async () => {
+  it("updates only the active branch membership and audits it", async () => {
     db.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM profiles")) return [target];
-      if (sql.includes("UPDATE profiles SET role")) return [{ id: "user-2", role: "supervisor" }];
+      if (sql.includes("FROM profiles")) {
+        return [{ ...target, branch_role: "employee", admin_anywhere: false }];
+      }
       return [];
     });
 
@@ -187,12 +188,95 @@ describe("PATCH /api/users/[id]", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     const roleUpdate = db.query.mock.calls.find(([sql]) =>
-      String(sql).includes("UPDATE profiles SET role"),
+      String(sql).includes("UPDATE user_branches SET role"),
     );
-    expect(roleUpdate?.[1]).toEqual(["user-2", "supervisor"]);
+    expect(roleUpdate?.[1]).toEqual(["user-2", "branch-1", "supervisor"]);
+    expect(
+      db.query.mock.calls.some(([sql]) => String(sql).includes("UPDATE profiles SET role")),
+    ).toBe(false);
     const audit = db.query.mock.calls.find(([sql]) => String(sql).includes("'user.update'"));
     expect(audit).toBeTruthy();
-    expect(audit?.[1]).toEqual(["user-1", "user-2", null, "supervisor", false]);
+    expect(audit?.[1]).toEqual(["user-1", "branch-1", "user-2", null, "supervisor", false]);
+  });
+
+  it("hides a user outside the active branch from a non-master", async () => {
+    db.query.mockResolvedValue([
+      { id: "user-2", role: "employee", is_active: true, branch_role: null, admin_anywhere: false },
+    ]);
+
+    const res = await PATCH(
+      jsonRequest("http://localhost/api/users/user-2", "PATCH", { role: "supervisor" }),
+      params("user-2"),
+    );
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Usuario inexistente" });
+    expect(
+      db.query.mock.calls.some(([sql]) => String(sql).includes("UPDATE user_branches")),
+    ).toBe(false);
+  });
+
+  it("lets a master change the role in a specific branch", async () => {
+    const otherBranch = "22222222-2222-2222-2222-222222222222";
+    session.getSessionUser.mockResolvedValue(makeUser({ userId: "user-1", isMaster: true }));
+    db.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("FROM profiles")) {
+        return [
+          {
+            id: "user-2",
+            role: "employee",
+            is_active: true,
+            branch_role: "employee",
+            admin_anywhere: false,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const res = await PATCH(
+      jsonRequest("http://localhost/api/users/user-2", "PATCH", {
+        role: "supervisor",
+        branchId: otherBranch,
+      }),
+      params("user-2"),
+    );
+
+    expect(res.status).toBe(200);
+    const roleUpdate = db.query.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE user_branches SET role"),
+    );
+    expect(roleUpdate?.[1]).toEqual(["user-2", otherBranch, "supervisor"]);
+    const audit = db.query.mock.calls.find(([sql]) => String(sql).includes("'user.update'"));
+    expect(audit?.[1]).toEqual(["user-1", otherBranch, "user-2", null, "supervisor", false]);
+  });
+
+  it("rejects a branchId from a non-master", async () => {
+    const res = await PATCH(
+      jsonRequest("http://localhost/api/users/user-2", "PATCH", {
+        role: "supervisor",
+        branchId: "22222222-2222-2222-2222-222222222222",
+      }),
+      params("user-2"),
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "Solo el administrador global puede elegir la sucursal",
+    });
+  });
+
+  it("rejects an invalid branchId", async () => {
+    const res = await PATCH(
+      jsonRequest("http://localhost/api/users/user-2", "PATCH", {
+        role: "supervisor",
+        branchId: "nope",
+      }),
+      params("user-2"),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Sucursal inválida" });
   });
 
   it("resets the password through an upsert", async () => {

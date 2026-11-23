@@ -1,16 +1,17 @@
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
 import { redirect } from "next/navigation";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { SpecialsManager } from "./specials-manager";
 
 export default async function TarifasEspecialesPage() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "tariff.manage"))) {
+  const context = await getBranchContext();
+  if (!context) redirect("/login");
+  if (!context.branchId) redirect("/seleccionar-sucursal");
+  if (!context.can("tariff.manage")) {
     return <AccessDenied message="Solo el administrador puede gestionar tarifas especiales." />;
   }
+  const branchId = context.branchId;
 
   const [specials, types] = await Promise.all([
     query<{
@@ -28,8 +29,10 @@ export default async function TarifasEspecialesPage() {
               adjustment_type::text AS adjustment_type, adjustment_value::text, priority,
               status::text AS status
          FROM special_tariff_periods
+        WHERE branch_id = $1::uuid
         ORDER BY starts_at DESC
         LIMIT 100`,
+      [branchId],
     ),
     query<{ id: string; name: string }>(
       `SELECT id, name FROM vehicle_types WHERE is_active ORDER BY sort_order`,

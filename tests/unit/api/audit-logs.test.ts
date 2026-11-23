@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/audit-logs/route";
-import { makeUser } from "./_support";
+import { makeContext } from "./_support";
 
 const db = vi.hoisted(() => ({
   query: vi.fn(),
@@ -8,11 +8,8 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db/client", () => db);
 
-const session = vi.hoisted(() => ({ getSessionUser: vi.fn() }));
-vi.mock("@/lib/auth/session", () => session);
-
-const permissions = vi.hoisted(() => ({ hasPermission: vi.fn() }));
-vi.mock("@/lib/auth/permissions", () => permissions);
+const auth = vi.hoisted(() => ({ getBranchContextOrFail: vi.fn() }));
+vi.mock("@/lib/auth/context", () => auth);
 
 const log = {
   id: "log-1",
@@ -29,14 +26,16 @@ const request = (query = "") =>
   new Request(`http://localhost/api/audit-logs${query}`, { method: "GET" });
 
 beforeEach(() => {
-  session.getSessionUser.mockResolvedValue(makeUser());
-  permissions.hasPermission.mockResolvedValue(true);
+  auth.getBranchContextOrFail.mockResolvedValue({ context: makeContext(), error: null });
   db.query.mockResolvedValue([]);
 });
 
 describe("GET /api/audit-logs", () => {
   it("returns 401 without a session", async () => {
-    session.getSessionUser.mockResolvedValue(null);
+    auth.getBranchContextOrFail.mockResolvedValue({
+      context: null,
+      error: { status: 401, body: { error: "Sesión requerida" } },
+    });
 
     const res = await GET(request());
 
@@ -45,13 +44,16 @@ describe("GET /api/audit-logs", () => {
   });
 
   it("returns 403 without audit.read", async () => {
-    permissions.hasPermission.mockResolvedValue(false);
+    auth.getBranchContextOrFail.mockResolvedValue({
+      context: null,
+      error: { status: 403, body: { error: "Acceso restringido" } },
+    });
 
     const res = await GET(request());
 
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "No tenés permiso" });
-    expect(permissions.hasPermission).toHaveBeenCalledWith(expect.anything(), "audit.read");
+    expect(await res.json()).toEqual({ error: "Acceso restringido" });
+    expect(auth.getBranchContextOrFail).toHaveBeenCalledWith("audit.read");
   });
 
   it("returns the logs with default filters and limit", async () => {
@@ -61,13 +63,13 @@ describe("GET /api/audit-logs", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ logs: [log] });
-    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100]);
+    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100, "branch-1"]);
   });
 
   it("passes action and entityType filters through", async () => {
     await GET(request("?action=%20login%20&entityType=profile"));
 
-    expect(db.query.mock.calls[0]?.[1]).toEqual(["login", "profile", 100]);
+    expect(db.query.mock.calls[0]?.[1]).toEqual(["login", "profile", 100, "branch-1"]);
   });
 
   it("clamps the limit into 1..500", async () => {
@@ -81,7 +83,7 @@ describe("GET /api/audit-logs", () => {
   it("turns blank filters into null", async () => {
     await GET(request("?action=%20&entityType="));
 
-    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100]);
+    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100, "branch-1"]);
   });
 
   it("falls back to the default limit when it is not a number", async () => {
@@ -89,7 +91,7 @@ describe("GET /api/audit-logs", () => {
     // A non-numeric limit must degrade to the default instead of failing the query.
     await GET(request("?limit=abc"));
 
-    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100]);
+    expect(db.query.mock.calls[0]?.[1]).toEqual([null, null, 100, "branch-1"]);
   });
 
   it("maps a database failure to a 400", async () => {

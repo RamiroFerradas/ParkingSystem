@@ -1,26 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/reports/export/route";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
 import { query } from "@/lib/db/client";
+import { makeContext } from "./_support";
 
-vi.mock("@/lib/auth/session", () => ({ getSessionUser: vi.fn() }));
-vi.mock("@/lib/auth/permissions", () => ({ hasPermission: vi.fn() }));
+const auth = vi.hoisted(() => ({ getBranchContextOrFail: vi.fn() }));
+vi.mock("@/lib/auth/context", () => auth);
 vi.mock("@/lib/db/client", () => ({ query: vi.fn() }));
 
-const mockSession = vi.mocked(getSessionUser);
-const mockPermission = vi.mocked(hasPermission);
 const mockQuery = vi.mocked(query);
-
-const user = {
-  userId: "user-1",
-  email: "supervisor@parking.test",
-  name: "Supervisor",
-  role: "supervisor" as const,
-  branchId: "branch-1",
-  branchName: "Central",
-  isMaster: false,
-};
 
 const rows = [
   { day: "2026-01-15", sessions: "4", collected: "500000", methods: 'Efectivo:300000 | "Tarjeta":200000' },
@@ -32,8 +19,7 @@ function get(queryString = "") {
 }
 
 beforeEach(() => {
-  mockSession.mockResolvedValue(user);
-  mockPermission.mockResolvedValue(true);
+  auth.getBranchContextOrFail.mockResolvedValue({ context: makeContext(), error: null });
   mockQuery.mockResolvedValue(rows);
 });
 
@@ -50,7 +36,8 @@ describe("GET /api/reports/export", () => {
         '2026-01-15,4,500000,"Efectivo:300000 | \'Tarjeta\':200000"\n' +
         '2026-01-14,1,100000,""\n',
     );
-    expect(mockPermission).toHaveBeenCalledWith(user, "reports.read");
+    expect(auth.getBranchContextOrFail).toHaveBeenCalledWith("reports.read");
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["branch-1"]);
   });
 
   it("selects the requested period and reflects it in the filename", async () => {
@@ -78,22 +65,28 @@ describe("GET /api/reports/export", () => {
   });
 
   it("returns 401 when there is no session", async () => {
-    mockSession.mockResolvedValueOnce(null);
+    auth.getBranchContextOrFail.mockResolvedValueOnce({
+      context: null,
+      error: { status: 401, body: { error: "Sesión requerida" } },
+    });
 
     const res = await get();
 
     expect(res.status).toBe(401);
-    await expect(res.json()).resolves.toEqual({ error: "Sesión requerida" });
+    await expect(res.text()).resolves.toBe("Sesión requerida");
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
   it("returns a plain-text 403 without reports.read", async () => {
-    mockPermission.mockResolvedValueOnce(false);
+    auth.getBranchContextOrFail.mockResolvedValueOnce({
+      context: null,
+      error: { status: 403, body: { error: "Acceso restringido" } },
+    });
 
     const res = await get();
 
     expect(res.status).toBe(403);
-    await expect(res.text()).resolves.toBe("No tenés permiso");
+    await expect(res.text()).resolves.toBe("Acceso restringido");
     expect(mockQuery).not.toHaveBeenCalled();
   });
 

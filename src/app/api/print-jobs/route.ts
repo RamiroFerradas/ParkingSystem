@@ -31,6 +31,12 @@ export async function GET(request: Request) {
   const { user, error } = await requireUser();
   if (error) return error;
 
+  // La cola es operativa: sin sucursal activa no hay nada que mostrar.
+  const branchId = user.branchId;
+  if (!branchId) {
+    return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
+  }
+
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const allowed = ["pending", "printed", "error"];
@@ -47,9 +53,10 @@ export async function GET(request: Request) {
          JOIN parking_sessions s ON s.id = j.session_id
          JOIN vehicles v ON v.id = s.vehicle_id
         WHERE ($1::print_job_status IS NULL OR j.status = $1::print_job_status)
+          AND s.branch_id = $2::uuid
         ORDER BY j.created_at DESC
         LIMIT 50`,
-      [status],
+      [status, branchId],
     );
     return NextResponse.json({ jobs: rows });
   } catch (err) {
@@ -69,13 +76,17 @@ export async function POST(request: Request) {
   if (bodyError) return bodyError;
 
   const { sessionId, kind } = body;
+  const branchId = user.branchId;
+  if (!branchId) {
+    return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
+  }
 
   try {
     // B1: la sucursal se resuelve desde la estadía, no desde el body. Un job
     // solo puede encolarse para una estadía de la sucursal activa.
     const owned = await query<{ id: string }>(
       "SELECT id FROM parking_sessions WHERE id = $1 AND branch_id = $2",
-      [sessionId, user.branchId],
+      [sessionId, branchId],
     );
     if (!owned[0]) {
       return NextResponse.json({ error: "Estadía no encontrada" }, { status: 404 });
@@ -88,9 +99,9 @@ export async function POST(request: Request) {
     );
     if (kind === "reprint") {
       await query(
-        `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id)
-         VALUES (gen_random_uuid(), $1, 'ticket.reprint', 'parking_session', $2)`,
-        [user.userId, sessionId],
+        `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id)
+         VALUES (gen_random_uuid(), $1, $2, 'ticket.reprint', 'parking_session', $3)`,
+        [user.userId, branchId, sessionId],
       );
     }
     return NextResponse.json({ ok: true, id: rows[0]!.id }, { status: 201 });

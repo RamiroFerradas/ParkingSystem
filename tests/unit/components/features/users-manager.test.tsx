@@ -141,6 +141,115 @@ describe("UsersManager", () => {
     expect((screen.getByPlaceholderText("Contraseña (mín. 8)") as HTMLInputElement).value).toBe("");
   });
 
+  it("sends the active branch membership for a non-master", async () => {
+    mockFetch(() =>
+      jsonResponse({
+        user: {
+          id: "u4",
+          full_name: "Nuevo Usuario",
+          email: "nuevo@estaciona.test",
+          role: "employee",
+          is_active: true,
+          branches: [{ id: "b1", name: "Centro", role: "employee" }],
+        },
+      }),
+    );
+    render(
+      <UsersManager
+        currentUserId="u9"
+        currentBranchId="b1"
+        currentBranchName="Centro"
+        branches={[{ id: "b1", name: "Centro" }]}
+        users={USERS}
+      />,
+    );
+
+    fillNewUser({ email: "nuevo@estaciona.test", name: "Nuevo Usuario", password: "12345678" });
+    fireEvent.click(screen.getByRole("button", { name: "Crear usuario" }));
+
+    expect(await screen.findByText("Nuevo Usuario")).toBeInTheDocument();
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(bodyOf(init)).toEqual({
+      email: "nuevo@estaciona.test",
+      fullName: "Nuevo Usuario",
+      role: "employee",
+      password: "12345678",
+      memberships: [{ branchId: "b1", role: "employee" }],
+    });
+  });
+
+  it("lets a master choose several branches and preselects the current one", async () => {
+    mockFetch(() =>
+      jsonResponse({
+        user: {
+          id: "u4",
+          full_name: "Nuevo Usuario",
+          email: "nuevo@estaciona.test",
+          role: "admin",
+          is_active: true,
+          branches: [
+            { id: "b1", name: "Centro", role: "admin" },
+            { id: "b2", name: "Norte", role: "employee" },
+          ],
+        },
+      }),
+    );
+    render(
+      <UsersManager
+        currentUserId="u9"
+        currentBranchId="b1"
+        currentBranchName="Centro"
+        isMaster
+        branches={[
+          { id: "b1", name: "Centro" },
+          { id: "b2", name: "Norte" },
+        ]}
+        users={USERS}
+      />,
+    );
+
+    const centro = screen.getByRole("checkbox", { name: /Centro/ }) as HTMLInputElement;
+    expect(centro.checked).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Norte/ }));
+    fireEvent.change(screen.getByLabelText("Rol en Centro"), {
+      target: { value: "admin" },
+    });
+
+    fillNewUser({ email: "nuevo@estaciona.test", name: "Nuevo Usuario", password: "12345678" });
+    fireEvent.click(screen.getByRole("button", { name: "Crear usuario" }));
+
+    expect(await screen.findByText("Nuevo Usuario")).toBeInTheDocument();
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(bodyOf(init)).toEqual({
+      email: "nuevo@estaciona.test",
+      fullName: "Nuevo Usuario",
+      role: "admin",
+      password: "12345678",
+      memberships: [
+        { branchId: "b1", role: "admin" },
+        { branchId: "b2", role: "employee" },
+      ],
+    });
+  });
+
+  it("shows each user's branches and roles", () => {
+    const withBranches: ManagedUser[] = [
+      {
+        ...USERS[0]!,
+        branches: [
+          { id: "b1", name: "Centro", role: "admin" },
+          { id: "b2", name: "Norte", role: "employee" },
+        ],
+      },
+    ];
+    mockFetch(() => jsonResponse({}));
+    render(<UsersManager currentUserId="u9" users={withBranches} />);
+
+    expect(screen.getByText(/Sucursales:/)).toHaveTextContent(
+      "Sucursales: Centro (Administrador), Norte (Empleado)",
+    );
+  });
+
   it("shows the creation error and does not add the user", async () => {
     mockFetch(() => jsonResponse({ error: "El email ya está registrado" }, 409));
     render(<UsersManager currentUserId="u9" users={USERS} />);

@@ -1,6 +1,5 @@
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatARS, formatDate, formatElapsed, formatTime } from "@/lib/format";
@@ -27,9 +26,10 @@ export default async function TurnosReportPage({
 }: {
   searchParams: Promise<{ p?: string }>;
 }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "reports.read"))) {
+  const context = await getBranchContext();
+  if (!context) redirect("/login");
+  if (!context.branchId) redirect("/seleccionar-sucursal");
+  if (!context.can("reports.read")) {
     return <AccessDenied message="Requiere permiso de reportes (supervisor o administrador)." />;
   }
 
@@ -51,9 +51,11 @@ export default async function TurnosReportPage({
        FROM cash_shifts cs
        JOIN profiles po ON po.id = cs.opened_by
        LEFT JOIN profiles pc ON pc.id = cs.closed_by
-      WHERE ${period.where("cs.opened_at")}
+      WHERE cs.branch_id = $1::uuid
+        AND ${period.where("cs.opened_at")}
       ORDER BY cs.opened_at DESC
       LIMIT 200`,
+    [context.branchId],
   );
 
   const totals = rows.reduce(

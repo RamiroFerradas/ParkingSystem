@@ -17,6 +17,8 @@ interface TargetRow {
   id: string;
   role: string;
   is_active: boolean;
+  /** Whether the target is a member of the branch being edited. */
+  in_branch: boolean;
 }
 
 /**
@@ -30,10 +32,18 @@ interface TargetRow {
 // nadie capaz de administrar usuarios.
 const PERMISSIONS_LOCK_KEY = 918_273_645;
 
-async function loadTarget(id: string): Promise<TargetRow | null> {
+async function loadTarget(
+  id: string,
+  branchId: string,
+): Promise<TargetRow | null> {
   const rows = await query<TargetRow>(
-    `SELECT id, role::text AS role, is_active FROM profiles WHERE id = $1`,
-    [id],
+    `SELECT p.id, COALESCE(ub.role, p.role)::text AS role, p.is_active,
+            (ub.user_id IS NOT NULL) AS in_branch
+       FROM profiles p
+       LEFT JOIN user_branches ub
+         ON ub.user_id = p.id AND ub.branch_id = $2
+      WHERE p.id = $1`,
+    [id, branchId],
   );
   return rows[0] ?? null;
 }
@@ -58,8 +68,12 @@ export async function GET(
   }
 
   try {
-    const target = await loadTarget(id);
+    const target = await loadTarget(id, user.branchId);
     if (!target) {
+      return NextResponse.json({ error: "Usuario inexistente" }, { status: 404 });
+    }
+    // Un usuario común sólo configura accesos de miembros de su sucursal.
+    if (!user.isMaster && !target.in_branch) {
       return NextResponse.json({ error: "Usuario inexistente" }, { status: 404 });
     }
 
@@ -156,11 +170,21 @@ export async function PUT(
     await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [PERMISSIONS_LOCK_KEY]);
 
     const targetRows = await client.query<TargetRow>(
-      `SELECT id, role::text AS role, is_active FROM profiles WHERE id = $1`,
-      [id],
+      `SELECT p.id, COALESCE(ub.role, p.role)::text AS role, p.is_active,
+              (ub.user_id IS NOT NULL) AS in_branch
+         FROM profiles p
+         LEFT JOIN user_branches ub
+           ON ub.user_id = p.id AND ub.branch_id = $2
+        WHERE p.id = $1`,
+      [id, branchId],
     );
     const target = targetRows.rows[0];
     if (!target) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Usuario inexistente" }, { status: 404 });
+    }
+    // Misma guarda que en GET: el común no toca usuarios de otra sucursal.
+    if (!user.isMaster && !target.in_branch) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Usuario inexistente" }, { status: 404 });
     }
@@ -204,8 +228,10 @@ export async function PUT(
     // usuarios. Se cuentan las excepciones reales de los demás, no el rol solo.
     if (target.is_active && manageBefore && !manageAfter) {
       const others = await client.query<{ role: string; allowed: boolean | null }>(
-        `SELECT p.role::text AS role, up.allowed
+        `SELECT ub.role::text AS role, up.allowed
            FROM profiles p
+           JOIN user_branches ub
+             ON ub.user_id = p.id AND ub.branch_id = $2
            LEFT JOIN user_permissions up
              ON up.user_id = p.id AND up.permission = 'user.manage' AND up.branch_id = $2
           WHERE p.is_active AND p.id <> $1`,
@@ -258,10 +284,16 @@ export async function PUT(
         [...requested.keys()].map((permission) => [permission, requested.get(permission)]),
       );
       await client.query(
-        `INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, after)
-         VALUES (gen_random_uuid(), $1, 'user.permissions', 'profile', $2,
-                 jsonb_build_object('before', $3::jsonb, 'after', $4::jsonb))`,
-        [user.userId, id, JSON.stringify(beforeState), JSON.stringify(afterPayload)],
+        `INSERT INTO audit_logs (id, actor_id, branch_id, action, entity_type, entity_id, after)
+         VALUES (gen_random_uuid(), $1, $2, 'user.permissions', 'profile', $3,
+                 jsonb_build_object('before', $4::jsonb, 'after', $5::jsonb))`,
+        [
+          user.userId,
+          branchId,
+          id,
+          JSON.stringify(beforeState),
+          JSON.stringify(afterPayload),
+        ],
       );
     }
 

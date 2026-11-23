@@ -1,27 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/reports/summary/route";
 import type { SummaryTotals } from "@/app/api/reports/summary/route";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
 import { query } from "@/lib/db/client";
+import { makeContext } from "./_support";
 
-vi.mock("@/lib/auth/session", () => ({ getSessionUser: vi.fn() }));
-vi.mock("@/lib/auth/permissions", () => ({ hasPermission: vi.fn() }));
+const auth = vi.hoisted(() => ({ getBranchContextOrFail: vi.fn() }));
+vi.mock("@/lib/auth/context", () => auth);
 vi.mock("@/lib/db/client", () => ({ query: vi.fn() }));
 
-const mockSession = vi.mocked(getSessionUser);
-const mockPermission = vi.mocked(hasPermission);
 const mockQuery = vi.mocked(query);
-
-const user = {
-  userId: "user-1",
-  email: "supervisor@parking.test",
-  name: "Supervisor",
-  role: "supervisor" as const,
-  branchId: "branch-1",
-  branchName: "Central",
-  isMaster: false,
-};
 
 const daily = [{ day: "2026-01-15", sessions: "4", collected: "500000" }];
 const byMethod = [{ method_name: "Efectivo", sessions: "4", collected: "500000" }];
@@ -32,8 +19,7 @@ function get(queryString = "") {
 }
 
 beforeEach(() => {
-  mockSession.mockResolvedValue(user);
-  mockPermission.mockResolvedValue(true);
+  auth.getBranchContextOrFail.mockResolvedValue({ context: makeContext(), error: null });
   // The handler fires three queries in parallel; reply by position on every round.
   let round = 0;
   const replies = [daily, byMethod, totals];
@@ -55,8 +41,12 @@ describe("GET /api/reports/summary", () => {
       byMethod,
       totals: totals[0],
     });
-    expect(mockPermission).toHaveBeenCalledWith(user, "reports.read");
-    expect(mockQuery.mock.calls.map((c) => c[1])).toEqual([["30"], ["30"], ["30"]]);
+    expect(auth.getBranchContextOrFail).toHaveBeenCalledWith("reports.read");
+    expect(mockQuery.mock.calls.map((c) => c[1])).toEqual([
+      ["30", "branch-1"],
+      ["30", "branch-1"],
+      ["30", "branch-1"],
+    ]);
   });
 
   it("exposes only the totals columns the SQL actually selects", async () => {
@@ -87,7 +77,7 @@ describe("GET /api/reports/summary", () => {
     const body = (await res.json()) as { days: number };
 
     expect(body.days).toBe(7);
-    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["7"]);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(["7", "branch-1"]);
   });
 
   it("clamps the window between 1 and 365 days", async () => {
@@ -116,7 +106,10 @@ describe("GET /api/reports/summary", () => {
   });
 
   it("returns 401 when there is no session", async () => {
-    mockSession.mockResolvedValueOnce(null);
+    auth.getBranchContextOrFail.mockResolvedValueOnce({
+      context: null,
+      error: { status: 401, body: { error: "Sesión requerida" } },
+    });
 
     const res = await get();
 
@@ -126,12 +119,15 @@ describe("GET /api/reports/summary", () => {
   });
 
   it("returns 403 without reports.read", async () => {
-    mockPermission.mockResolvedValueOnce(false);
+    auth.getBranchContextOrFail.mockResolvedValueOnce({
+      context: null,
+      error: { status: 403, body: { error: "Acceso restringido" } },
+    });
 
     const res = await get();
 
     expect(res.status).toBe(403);
-    await expect(res.json()).resolves.toEqual({ error: "No tenés permiso" });
+    await expect(res.json()).resolves.toEqual({ error: "Acceso restringido" });
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
