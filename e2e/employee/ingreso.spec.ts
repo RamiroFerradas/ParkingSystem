@@ -88,6 +88,12 @@ test("sanea la patente, filtra boxes y registra el ingreso", async ({ page }) =>
   await page.getByRole("button", { name: /Registrar otro ingreso/ }).click();
   await expect(page.getByLabel("Patente")).toHaveValue("");
 
+  // Mientras el auto está adentro, el mapa marca llave y rotura en el box.
+  await page.goto("/boxes/mapa");
+  const parkedTile = page.locator("[data-box-tile]").filter({ hasText: plate }).first();
+  await expect(parkedTile).toContainText("Llave");
+  await expect(parkedTile).toContainText("Rotura");
+
   await page.goto("/operaciones/estadias");
   await expect(page.getByRole("cell", { name: plate })).toBeVisible();
 
