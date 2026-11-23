@@ -1,6 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { looksLikePooler, resolveDatabaseUrl } from "./e2e/support/db-target.mts";
-import { resolveE2eSchema } from "./e2e/support/schema-guard.mts";
+import { resolveE2eTarget, type E2eTarget } from "./e2e/support/target.mts";
 
 /**
  * E2E harness for the dashboard.
@@ -9,28 +8,18 @@ import { resolveE2eSchema } from "./e2e/support/schema-guard.mts";
  *   - `scripts/test-e2e.mjs` owns business rules over HTTP (tariffs, shifts,
  *     outbox, audit). Keep it.
  *   - this suite owns what only a browser proves: hydration, navigation,
- *     permission-driven rendering and the entry journey.
+ *     permission-driven rendering and the journeys across screens.
  *
- * The database target is a throwaway schema inside the disposable local
- * Postgres from `docker-compose.yml`, rebuilt from `db/migrations` on every run.
- * `resolveE2eSchema` refuses `public` and `dev`; `resolveDatabaseUrl` refuses a
- * transaction-mode pooler.
+ * Two targets, selected with `E2E_TARGET`:
+ *   - `disposable` (default, CI): throwaway schema inside `docker-compose`'s
+ *     Postgres, rebuilt from `db/migrations` on every run.
+ *   - `dev`: the shared `dev` schema on Supabase. Nothing is dropped: the suite
+ *     owns a dedicated branch with its own floors, boxes, tariffs and users
+ *     (`e2e/support/dev-fixtures.mts`).
  */
-const schema = resolveE2eSchema();
-const databaseUrl = resolveDatabaseUrl();
-
-/**
- * A transaction-mode pooler reuses server connections between clients, so the
- * per-connection `search_path` the app relies on silently falls back to another
- * schema. Sessions then look up the wrong tables and every page redirects to
- * /login?expired=1 under load.
- */
-if (looksLikePooler(databaseUrl)) {
-  throw new Error(
-    "E2E_DATABASE_URL points at a transaction-mode pooler (port 6543 / pooler host). " +
-      "Run the suite against a direct Postgres connection instead.",
-  );
-}
+const target: E2eTarget = resolveE2eTarget();
+const { mode, schema, databaseUrl } = target;
+const isDev = mode === "dev";
 
 const port = Number(process.env.E2E_PORT ?? 3300);
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
@@ -42,6 +31,13 @@ const env = Object.fromEntries(
 
 // `E2E_SKIP_BUILD=1` reuses the existing `.next` output for fast local loops.
 const buildStep = process.env.E2E_SKIP_BUILD === "1" ? "" : "pnpm build && ";
+// The app must boot against the same database the fixtures prepared.
+const databaseEnv = {
+  DATABASE_URL: databaseUrl,
+  DATABASE_SCHEMA: schema,
+  // Local cookie plane: the suite speaks plain http on 127.0.0.1.
+  DATA_PLANE: env.DATA_PLANE ?? "local",
+};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -56,6 +52,9 @@ export default defineConfig({
   reporter: process.env.CI
     ? [["github"], ["html", { open: "never" }]]
     : [["list"], ["html", { open: "never" }]],
+  // Sign-in once per role before the run: keeps a single project, so the whole
+  // suite (all employee and admin flows) is listed together.
+  globalSetup: "./e2e/global-setup.mts",
   globalTeardown: "./e2e/global-teardown.mts",
 
   use: {
@@ -69,17 +68,11 @@ export default defineConfig({
 
   projects: [
     {
-      name: "setup",
-      testMatch: /auth\.setup\.ts/,
-    },
-    {
       name: "chromium",
-      testIgnore: /auth\.setup\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/admin.json",
       },
-      dependencies: ["setup"],
     },
   ],
 
@@ -87,12 +80,14 @@ export default defineConfig({
   webServer: useExternalServer
     ? undefined
     : {
-        command: `node e2e/support/schema.mts create && ${buildStep}pnpm exec next start -p ${port}`,
+        command: isDev
+          ? `node e2e/support/dev-fixtures.mts prepare && ${buildStep}pnpm exec next start -p ${port}`
+          : `node e2e/support/schema.mts create && ${buildStep}pnpm exec next start -p ${port}`,
         url: baseURL,
         reuseExistingServer: false,
         timeout: 300_000,
         stdout: "pipe",
         stderr: "pipe",
-        env: { ...env, DATABASE_URL: databaseUrl, DATABASE_SCHEMA: schema },
+        env: { ...env, ...databaseEnv },
       },
 });

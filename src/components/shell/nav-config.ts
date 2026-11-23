@@ -145,6 +145,13 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: "reports.read",
       },
       {
+        label: "Consolidado por sucursal",
+        href: "/reportes/sucursales",
+        enabled: true,
+        permission: "reports.read",
+        masterOnly: true,
+      },
+      {
         label: "Impacto de abonos",
         href: "/reportes/abonados",
         enabled: true,

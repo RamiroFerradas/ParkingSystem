@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { requireBranchContext } from "@/lib/auth/context";
 import { redirect } from "next/navigation";
 import { formatElapsed, formatTime } from "@/lib/format";
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -18,9 +17,9 @@ export default async function EgresoPage({
 }) {
   const { session: sessionId } = await searchParams;
 
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "session.close"))) {
+  const context = await requireBranchContext();
+  if (!context.branchId) redirect("/seleccionar-sucursal");
+  if (!context.can("session.close")) {
     return <AccessDenied message="No tenés habilitado el registro de egresos." />;
   }
 
@@ -33,14 +32,14 @@ export default async function EgresoPage({
             Elegí la estadía a cobrar
           </p>
         </header>
-        <OpenStayPicker />
+        <OpenStayPicker branchId={context.branchId} />
       </div>
     );
   }
 
   let data: EgresoData;
   try {
-    data = await loadEgresoData(sessionId);
+    data = await loadEgresoData(sessionId, context.branchId);
   } catch {
     return (
       <div className="mx-auto max-w-lg rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center text-sm text-red-400">
@@ -91,7 +90,7 @@ export default async function EgresoPage({
   );
 }
 
-async function OpenStayPicker() {
+async function OpenStayPicker({ branchId }: { branchId: string }) {
   const stays = await query<{
     id: string;
     ticket_number: string;
@@ -105,8 +104,9 @@ async function OpenStayPicker() {
        FROM parking_sessions s
        JOIN vehicles v ON v.id = s.vehicle_id
        JOIN parking_boxes b ON b.id = s.box_id
-      WHERE s.status = 'open'
+      WHERE s.status = 'open' AND s.branch_id = $1
       ORDER BY s.entry_at`,
+    [branchId],
   );
 
   if (stays.length === 0) {
@@ -140,7 +140,7 @@ async function OpenStayPicker() {
   );
 }
 
-async function loadEgresoData(sessionId: string): Promise<EgresoData> {
+async function loadEgresoData(sessionId: string, branchId: string): Promise<EgresoData> {
   const session = await query<{
     ticket_number: string;
     plate: string;
@@ -158,8 +158,8 @@ async function loadEgresoData(sessionId: string): Promise<EgresoData> {
        JOIN vehicles v ON v.id = s.vehicle_id
        JOIN vehicle_types vt ON vt.id = s.vehicle_type_id
        JOIN parking_boxes b ON b.id = s.box_id
-      WHERE s.id = $1 AND s.status = 'open'`,
-    [sessionId],
+      WHERE s.id = $1 AND s.status = 'open' AND s.branch_id = $2`,
+    [sessionId, branchId],
   );
   if (session.length === 0) throw new Error("not found");
   const s = session[0]!;

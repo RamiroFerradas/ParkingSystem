@@ -1,6 +1,6 @@
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
+import { redirect } from "next/navigation";
 import { FloorManager, type AdminFloor } from "./FloorManager";
 
 interface JoinRow {
@@ -17,7 +17,7 @@ interface JoinRow {
   plate: string | null;
 }
 
-async function loadFloors(): Promise<AdminFloor[]> {
+async function loadFloors(branchId: string): Promise<AdminFloor[]> {
   const rows = await query<JoinRow>(
     `SELECT f.id AS floor_id, f.name AS floor_name, f.sort_order, f.is_active AS floor_active,
             b.id AS box_id, b.number, b.sector, b.is_active AS box_active,
@@ -25,7 +25,9 @@ async function loadFloors(): Promise<AdminFloor[]> {
        FROM parking_floors f
        LEFT JOIN parking_boxes b  ON b.floor_id = f.id
        LEFT JOIN box_status bs    ON bs.id = b.id
+      WHERE f.branch_id = $1
       ORDER BY f.sort_order, b.number`,
+    [branchId],
   );
 
   const floors = new Map<string, AdminFloor>();
@@ -57,10 +59,11 @@ async function loadFloors(): Promise<AdminFloor[]> {
 }
 
 export default async function AdministracionBoxesPage() {
-  const user = await getSessionUser();
-  const canManage = user ? await hasPermission(user, "box.manage") : false;
+  const context = await getBranchContext();
+  if (!context) redirect("/login?expired=1");
+  const canManage = context.can("box.manage");
 
-  if (!canManage) {
+  if (!canManage || !context.branchId) {
     return (
       <div className="space-y-4">
         <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Estructura de boxes</h1>
@@ -71,7 +74,7 @@ export default async function AdministracionBoxesPage() {
     );
   }
 
-  const floors = await loadFloors();
+  const floors = await loadFloors(context.branchId);
 
   return (
     <div className="space-y-6">

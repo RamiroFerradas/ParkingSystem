@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ getSessionUser: vi.fn() }));
-vi.mock("@/lib/auth/permissions", () => ({ hasPermission: vi.fn() }));
+vi.mock("@/lib/auth/context", () => ({ getBranchContext: vi.fn() }));
 
-import { getSessionUser, type SessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext, type BranchContext } from "@/lib/auth/context";
+import type { SessionUser } from "@/lib/auth/session";
 import { historialScopeForSession } from "@/lib/auth/scope";
 
 function session(overrides: Partial<SessionUser> = {}): SessionUser {
@@ -20,40 +19,59 @@ function session(overrides: Partial<SessionUser> = {}): SessionUser {
   };
 }
 
+function context(overrides: Partial<BranchContext> = {}): BranchContext {
+  return {
+    user: session(),
+    branchId: "branch-1",
+    branchName: "Centro",
+    role: "employee",
+    isMaster: false,
+    memberships: [],
+    can: () => false,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
-  vi.mocked(getSessionUser).mockResolvedValue(session());
-  vi.mocked(hasPermission).mockResolvedValue(false);
+  vi.mocked(getBranchContext).mockResolvedValue(context());
 });
 
 describe("historialScopeForSession", () => {
-  it("returns null without a session and never checks permissions", async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null);
+  it("returns null without a session", async () => {
+    vi.mocked(getBranchContext).mockResolvedValue(null);
 
     await expect(historialScopeForSession()).resolves.toBeNull();
-    expect(hasPermission).not.toHaveBeenCalled();
   });
 
   it("keeps the whole branch visible with session.read_all", async () => {
-    vi.mocked(hasPermission).mockResolvedValue(true);
+    vi.mocked(getBranchContext).mockResolvedValue(context({ can: (permission) => permission === "session.read_all" }));
 
     await expect(historialScopeForSession()).resolves.toEqual({
       userId: "user-1",
+      branchId: "branch-1",
     });
   });
 
   it("restricts to the owner's own sessions without session.read_all", async () => {
     await expect(historialScopeForSession()).resolves.toEqual({
       userId: "user-1",
+      branchId: "branch-1",
       ownerId: "user-1",
     });
   });
 
-  it("evaluates session.read_all against the full session user", async () => {
-    const master = session({ isMaster: true, role: "admin" });
-    vi.mocked(getSessionUser).mockResolvedValue(master);
+  it("always carries the active branch, even for a master", async () => {
+    vi.mocked(getBranchContext).mockResolvedValue(
+      context({
+        user: session({ isMaster: true, role: "admin" }),
+        isMaster: true,
+        can: () => true,
+      }),
+    );
 
-    await historialScopeForSession();
-
-    expect(hasPermission).toHaveBeenCalledWith(master, "session.read_all");
+    await expect(historialScopeForSession()).resolves.toEqual({
+      userId: "user-1",
+      branchId: "branch-1",
+    });
   });
 });

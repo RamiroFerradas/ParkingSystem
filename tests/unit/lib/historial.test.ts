@@ -218,14 +218,14 @@ describe("loadHistorialAll", () => {
 });
 
 describe("loadFilterOptions", () => {
-  it("loads the four option lists in parallel", async () => {
+  it("loads the four option lists in parallel for the active branch", async () => {
     dbQuery
       .mockResolvedValueOnce([{ id: "t1", name: "Auto" }])
       .mockResolvedValueOnce([{ id: "b1", number: "1" }])
       .mockResolvedValueOnce([{ id: "u1", full_name: "Operador" }])
       .mockResolvedValueOnce([{ id: "m1", name: "Efectivo" }]);
 
-    await expect(loadFilterOptions()).resolves.toEqual({
+    await expect(loadFilterOptions("branch-1")).resolves.toEqual({
       types: [{ id: "t1", name: "Auto" }],
       boxes: [{ id: "b1", number: "1" }],
       employees: [{ id: "u1", full_name: "Operador" }],
@@ -235,17 +235,17 @@ describe("loadFilterOptions", () => {
     const sqls = dbQuery.mock.calls.map(([sql]) => n(sql));
     expect(sqls).toEqual([
       "SELECT id, name FROM vehicle_types WHERE is_active ORDER BY sort_order",
-      "SELECT id, number FROM parking_boxes ORDER BY number",
-      "SELECT id, email AS full_name FROM profiles WHERE is_active ORDER BY email",
+      "SELECT id, number FROM parking_boxes WHERE branch_id = $1 ORDER BY number",
+      expect.stringContaining("JOIN user_branches ub ON ub.user_id = p.id"),
       "SELECT id, name FROM payment_methods WHERE is_active ORDER BY sort_order",
     ]);
   });
 
-  it("passes no parameters for the option queries", async () => {
-    await loadFilterOptions();
+  it("scopes boxes and employees to the branch", async () => {
+    await loadFilterOptions("branch-1");
 
-    for (const call of dbQuery.mock.calls) {
-      expect(call).toHaveLength(1);
-    }
+    // types and methods are global catalogues; boxes and employees are not.
+    expect(dbQuery.mock.calls[1]?.[1]).toEqual(["branch-1"]);
+    expect(dbQuery.mock.calls[2]?.[1]).toEqual(["branch-1"]);
   });
 });

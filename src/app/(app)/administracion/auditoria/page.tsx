@@ -1,6 +1,5 @@
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getBranchContext } from "@/lib/auth/context";
 import { redirect } from "next/navigation";
 import { formatDate, formatTime } from "@/lib/format";
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -11,9 +10,9 @@ export default async function AuditoriaPage({
 }: {
   searchParams: Promise<{ action?: string; entityType?: string }>;
 }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "audit.read"))) {
+  const context = await getBranchContext();
+  if (!context) redirect("/login?expired=1");
+  if (!context.can("audit.read")) {
     return <AccessDenied message="Solo el administrador puede consultar la auditoría." />;
   }
 
@@ -37,9 +36,10 @@ export default async function AuditoriaPage({
        LEFT JOIN profiles pr ON pr.id = a.actor_id
       WHERE ($1::text IS NULL OR a.action ILIKE '%' || $1::text || '%')
         AND ($2::text IS NULL OR a.entity_type = $2::text)
+        AND (a.branch_id IS NULL OR a.branch_id = $3::uuid)
       ORDER BY a.occurred_at DESC
       LIMIT 200`,
-    [action, entityType],
+    [action, entityType, context.branchId],
   );
 
   return (

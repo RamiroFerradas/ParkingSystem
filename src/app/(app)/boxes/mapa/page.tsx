@@ -1,7 +1,6 @@
 import { query } from "@/lib/db/client";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { requireBranchContext } from "@/lib/auth/context";
 import { formatElapsed } from "@/lib/format";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { BoxMapBoard, type BoardFloor } from "./BoxMapBoard";
@@ -32,34 +31,38 @@ interface InactiveBoxRow {
   is_service_enabled: boolean;
 }
 
-async function loadBoxes(): Promise<BoxStatusRow[]> {
+async function loadBoxes(branchId: string): Promise<BoxStatusRow[]> {
   return query<BoxStatusRow>(
     `SELECT b.id, b.number, b.sector, b.status, b.floor_id, b.floor_name, b.floor_sort,
             b.plate, b.entry_at, b.vehicle_type_name, s.ticket_number,
             b.is_service_enabled
        FROM box_status b
        LEFT JOIN parking_sessions s ON s.id = b.session_id
+      WHERE b.branch_id = $1
       ORDER BY b.floor_sort, b.number`,
+    [branchId],
   );
 }
 
 /** Los boxes dados de baja no están en la vista: se cargan aparte para poder
  * reactivarlos desde el modo edición del mapa. */
-async function loadInactiveBoxes(): Promise<InactiveBoxRow[]> {
+async function loadInactiveBoxes(branchId: string): Promise<InactiveBoxRow[]> {
   return query<InactiveBoxRow>(
     `SELECT b.id, b.number, b.sector, b.floor_id,
             f.name AS floor_name, f.sort_order AS floor_sort,
             b.is_service_enabled
        FROM parking_boxes b
        JOIN parking_floors f ON f.id = b.floor_id AND f.is_active
-      WHERE NOT b.is_active
+      WHERE NOT b.is_active AND b.branch_id = $1
       ORDER BY f.sort_order, b.number`,
+    [branchId],
   );
 }
 
-async function loadFloorOptions(): Promise<{ id: string; name: string }[]> {
+async function loadFloorOptions(branchId: string): Promise<{ id: string; name: string }[]> {
   return query<{ id: string; name: string }>(
-    `SELECT id, name FROM parking_floors WHERE is_active ORDER BY sort_order`,
+    `SELECT id, name FROM parking_floors WHERE is_active AND branch_id = $1 ORDER BY sort_order`,
+    [branchId],
   );
 }
 
@@ -79,19 +82,19 @@ export default async function MapaBoxesPage({
 }) {
   const params = await searchParams;
   const initialBoxId = typeof params.box === "string" ? params.box : null;
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
+  const context = await requireBranchContext();
+  if (!context.branchId) redirect("/seleccionar-sucursal");
   // El menú anuncia este ítem con `box.read`: la página tiene que exigir el
   // mismo permiso para que negarlo desde el configurador no deje la puerta
   // abierta por URL.
-  if (!(await hasPermission(user, "box.read"))) {
+  if (!context.can("box.read")) {
     return <AccessDenied message="No tenés habilitado el mapa de boxes." />;
   }
-  const canManage = await hasPermission(user, "box.manage");
+  const canManage = context.can("box.manage");
   const [boxes, inactiveBoxes, floorOptions] = await Promise.all([
-    loadBoxes(),
-    loadInactiveBoxes(),
-    loadFloorOptions(),
+    loadBoxes(context.branchId),
+    loadInactiveBoxes(context.branchId),
+    loadFloorOptions(context.branchId),
   ]);
 
   // Los pisos se crean en el orden configurado y así se renderizan.

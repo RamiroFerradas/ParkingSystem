@@ -23,6 +23,7 @@ const ACCOUNTS = JSON.parse(
 );
 const ADMIN = ACCOUNTS.admin;
 const EMPLOYEE = ACCOUNTS.employee;
+const MULTIBRANCH = ACCOUNTS.multibranch;
 import { resolveDatabaseUrl } from "./db-target.mts";
 import { resolveE2eSchema } from "./schema-guard.mts";
 
@@ -105,20 +106,36 @@ async function insertRow(client, schema, table, values) {
   return rows[0];
 }
 
-async function ensureBranch(client, schema) {
-  const existing = await client.query(
-    `SELECT id FROM "${schema}"."branches" ORDER BY created_at LIMIT 1`,
-  );
-  if (existing.rows[0]) return existing.rows[0];
+async function ensureBranch(client, schema, options = {}) {
+  if (options.code) {
+    const existing = await client.query(
+      `SELECT id FROM "${schema}"."branches" WHERE code = $1 LIMIT 1`,
+      [options.code],
+    );
+    if (existing.rows[0]) return existing.rows[0];
+  } else {
+    const existing = await client.query(
+      `SELECT id FROM "${schema}"."branches" ORDER BY created_at LIMIT 1`,
+    );
+    if (existing.rows[0]) return existing.rows[0];
+  }
 
   return insertRow(client, schema, "branches", {
-    name: "Principal",
-    code: "PRINCIPAL",
+    name: options.name ?? "Principal",
+    code: options.code ?? "PRINCIPAL",
     is_active: true,
   });
 }
 
-async function ensureUser(client, schema, account, role, branchId) {
+/**
+ * A second branch so the multi-branch login lands on `/seleccionar-sucursal`
+ * instead of the dashboard. Only the picker account belongs to it.
+ */
+async function ensureSecondaryBranch(client, schema) {
+  return ensureBranch(client, schema, { name: "Sucursal E2E B", code: "E2EB" });
+}
+
+async function ensureUser(client, schema, account, role, branchIds) {
   const { hash } = await import("@node-rs/argon2");
 
   // The schema is fresh on every run; the delete keeps a manual re-seed idempotent.
@@ -126,7 +143,7 @@ async function ensureUser(client, schema, account, role, branchId) {
 
   const profile = await insertRow(client, schema, "profiles", {
     id: crypto.randomUUID(),
-    full_name: role === "admin" ? "E2E Admin" : "E2E Employee",
+    full_name: role === "admin" ? "E2E Admin" : account.email.includes("multibranch") ? "E2E Multisucursal" : "E2E Empleado",
     role,
     is_active: true,
     email: account.email,
@@ -137,15 +154,75 @@ async function ensureUser(client, schema, account, role, branchId) {
     password_hash: await hash(account.password),
   });
 
-  // Exactly one membership: the login route auto-selects the branch instead of
-  // sending the user to /seleccionar-sucursal.
-  await client.query(
-    `INSERT INTO "${schema}"."user_branches" (user_id, branch_id, role)
-     VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-    [profile.id, branchId, role],
-  );
+  // The first membership is the working branch. A user with two memberships
+  // cannot be auto-selected, so login lands on /seleccionar-sucursal.
+  for (const branchId of branchIds) {
+    await client.query(
+      `INSERT INTO "${schema}"."user_branches" (user_id, branch_id, role)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [profile.id, branchId, role],
+    );
+  }
 
   return profile;
+}
+
+/**
+ * Active tariff blocks the journeys rely on: `calc_fee_breakdown` (migration
+ * 010) only considers `is_active` rows, while `002_seed` loads the reference
+ * table inactive.
+ */
+async function ensureTariffs(client, schema, branchId) {
+  const type = await client.query(
+    `SELECT id FROM "${schema}"."vehicle_types" WHERE code = 'AUTO' LIMIT 1`,
+  );
+  const vehicleTypeId = type.rows[0]?.id;
+  if (!vehicleTypeId) return;
+
+  const blocks = [
+    { minutes: 60, cents: 280_000, name: "Auto 1 hora" },
+    { minutes: 240, cents: 900_000, name: "Auto 4 horas" },
+  ];
+
+  for (const block of blocks) {
+    const existing = await client.query(
+      `SELECT id FROM "${schema}"."parking_tariffs"
+        WHERE branch_id = $1 AND vehicle_type_id = $2 AND kind = 'hourly'
+          AND duration_minutes = $3 AND is_active`,
+      [branchId, vehicleTypeId, block.minutes],
+    );
+    if (existing.rows[0]) continue;
+    await insertRow(client, schema, "parking_tariffs", {
+      branch_id: branchId,
+      kind: "hourly",
+      name: block.name,
+      vehicle_type_id: vehicleTypeId,
+      duration_minutes: block.minutes,
+      duration_mode: "flat",
+      amount_cents: block.cents,
+      valid_from: new Date(),
+      is_active: true,
+    });
+  }
+
+  const monthly = await client.query(
+    `SELECT id FROM "${schema}"."parking_tariffs"
+      WHERE branch_id = $1 AND vehicle_type_id = $2 AND kind = 'monthly' AND is_active`,
+    [branchId, vehicleTypeId],
+  );
+  if (monthly.rows.length === 0) {
+    await insertRow(client, schema, "parking_tariffs", {
+      branch_id: branchId,
+      kind: "monthly",
+      name: "Auto abono mensual",
+      vehicle_type_id: vehicleTypeId,
+      duration_minutes: null,
+      duration_mode: "flat",
+      amount_cents: 9_000_000,
+      valid_from: new Date(),
+      is_active: true,
+    });
+  }
 }
 
 async function ensureBoxes(client, schema, branchId) {
@@ -200,9 +277,12 @@ export async function createSchema(schema) {
     }
 
     const branch = await ensureBranch(client, schema);
-    await ensureUser(client, schema, ADMIN, "admin", branch.id);
-    await ensureUser(client, schema, EMPLOYEE, "employee", branch.id);
+    const secondary = await ensureSecondaryBranch(client, schema);
+    await ensureUser(client, schema, ADMIN, "admin", [branch.id]);
+    await ensureUser(client, schema, EMPLOYEE, "employee", [branch.id]);
+    await ensureUser(client, schema, MULTIBRANCH, "employee", [branch.id, secondary.id]);
     await ensureBoxes(client, schema, branch.id);
+    await ensureTariffs(client, schema, branch.id);
 
     return { schema, migrations: migrationFiles().length };
   } finally {

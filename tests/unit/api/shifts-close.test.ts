@@ -56,15 +56,25 @@ describe("POST /api/shifts/close", () => {
     const res = await post({ notes: "cierre normal" });
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true, shiftId: "shift-1" });
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      shiftId: "shift-1",
+      openSessions: 0,
+    });
     expect(mockContext).toHaveBeenCalledWith("shift.manage");
     expect(mockQuery.mock.calls[2]?.[1]).toEqual([
       "user-1",
       "cierre normal",
+      0,
       "shift-1",
       "branch-1",
     ]);
-    expect(mockQuery.mock.calls[3]?.[1]).toEqual(["user-1", "branch-1", "shift-1"]);
+    expect(mockQuery.mock.calls[3]?.[1]).toEqual([
+      "user-1",
+      "branch-1",
+      "shift-1",
+      JSON.stringify({ open_sessions: 0, forced: false }),
+    ]);
   });
 
   it("lets an admin close a shift opened by somebody else", async () => {
@@ -78,7 +88,11 @@ describe("POST /api/shifts/close", () => {
     const res = await post();
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true, shiftId: "shift-1" });
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      shiftId: "shift-1",
+      openSessions: 0,
+    });
   });
 
   it("lets a supervisor close a shift opened by somebody else", async () => {
@@ -126,8 +140,9 @@ describe("POST /api/shifts/close", () => {
     await expect(res.json()).resolves.toEqual({
       code: "SHIFT_HAS_OPEN_SESSIONS",
       openSessions: 2,
+      sessions: [],
       error:
-        "Hay 2 vehículos sin egreso en este turno. Registrá el egreso antes de cerrarlo.",
+        "Hay 2 vehículos sin egreso. Si cerrás el turno, sus cobros quedarán en el próximo turno.",
     });
   });
 
@@ -140,7 +155,7 @@ describe("POST /api/shifts/close", () => {
     const body = (await res.json()) as Record<string, unknown>;
 
     expect(body.error).toBe(
-      "Hay 1 vehículo sin egreso en este turno. Registrá el egreso antes de cerrarlo.",
+      "Hay 1 vehículo sin egreso. Si cerrás el turno, sus cobros quedarán en el próximo turno.",
     );
   });
 

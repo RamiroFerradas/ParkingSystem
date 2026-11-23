@@ -77,10 +77,11 @@ interface HistorialRowBase {
 }
 
 /**
- * Alcance de lectura por rol: sin `session.read_all`, un usuario solo ve las
- * estadías que abrió (permiso `session.read_own`).
+ * Alcance de lectura: sucursal activa siempre; sin `session.read_all`, un
+ * usuario solo ve las estadías que abrió (`session.read_own`).
  */
 export interface HistorialScope {
+  branchId?: string | null;
   ownerId?: string;
 }
 
@@ -91,6 +92,11 @@ function historialWhere(
   const clauses: string[] = [];
   const params: unknown[] = [];
   const next = () => `$${params.length}`;
+
+  if (scope.branchId) {
+    params.push(scope.branchId);
+    clauses.push(`s.branch_id = ${next()}::uuid`);
+  }
 
   if (scope.ownerId) {
     params.push(scope.ownerId);
@@ -184,16 +190,24 @@ export interface HistorialOptions {
   methods: { id: string; name: string }[];
 }
 
-export async function loadFilterOptions(): Promise<HistorialOptions> {
+export async function loadFilterOptions(branchId?: string | null): Promise<HistorialOptions> {
   const [types, boxes, employees, methods] = await Promise.all([
     query<{ id: string; name: string }>(
       `SELECT id, name FROM vehicle_types WHERE is_active ORDER BY sort_order`,
     ),
     query<{ id: string; number: string }>(
-      `SELECT id, number FROM parking_boxes ORDER BY number`,
+      branchId
+        ? `SELECT id, number FROM parking_boxes WHERE branch_id = $1 ORDER BY number`
+        : `SELECT id, number FROM parking_boxes ORDER BY number`,
+      branchId ? [branchId] : undefined,
     ),
     query<{ id: string; full_name: string }>(
-      `SELECT id, email AS full_name FROM profiles WHERE is_active ORDER BY email`,
+      `SELECT DISTINCT p.id, p.email AS full_name
+         FROM profiles p
+         JOIN user_branches ub ON ub.user_id = p.id
+        WHERE p.is_active AND ($1::uuid IS NULL OR ub.branch_id = $1::uuid)
+        ORDER BY p.email`,
+      [branchId ?? null],
     ),
     query<{ id: string; name: string }>(
       `SELECT id, name FROM payment_methods WHERE is_active ORDER BY sort_order`,

@@ -10,9 +10,10 @@ export default async function HistorialPage({
 }) {
   const sp = await searchParams;
   const filters = parseHistorialFilters(sp);
-  const scope: { ownerId?: string } = (await historialScopeForSession()) ?? {};
+  const scope: { ownerId?: string; branchId?: string | null } =
+    (await historialScopeForSession()) ?? {};
   const [options, rows] = await Promise.all([
-    loadFilterOptions(),
+    loadFilterOptions(scope.branchId),
     loadHistorial(filters, 500, scope),
   ]);
 

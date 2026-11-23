@@ -1,6 +1,5 @@
 import { query } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { requireBranchContext } from "@/lib/auth/context";
 import { redirect } from "next/navigation";
 import { IngresoForm } from "./ingreso-form";
 import { PrintQueuePanel } from "./print-queue";
@@ -11,19 +10,24 @@ interface IngresoData {
   shiftOpen: boolean;
 }
 
-async function loadIngresoData(): Promise<IngresoData> {
+async function loadIngresoData(branchId: string): Promise<IngresoData> {
   const [vehicleTypes, availableBoxes, openShift] = await Promise.all([
     query<{ id: string; name: string }>(
       `SELECT id, name FROM vehicle_types WHERE is_active ORDER BY sort_order, name`,
     ),
+    // Solo boxes de la sucursal activa: el servidor rechaza un ingreso en un box
+    // de otra sucursal, así que ofrecerlos acá sería un callejón sin salida.
     query<{ id: string; number: string; floor_name: string }>(
       `SELECT id, number, floor_name
          FROM box_status
-        WHERE status = 'available'
+        WHERE status = 'available' AND branch_id = $1
         ORDER BY floor_sort, number`,
+      [branchId],
     ),
+    // El turno que habilita el ingreso es el de esta sucursal, no el de otra.
     query<{ id: string }>(
-      `SELECT id FROM cash_shifts WHERE status = 'open' LIMIT 1`,
+      `SELECT id FROM cash_shifts WHERE status = 'open' AND branch_id = $1 LIMIT 1`,
+      [branchId],
     ),
   ]);
   return { vehicleTypes, availableBoxes, shiftOpen: openShift.length > 0 };
@@ -33,9 +37,10 @@ async function loadIngresoData(): Promise<IngresoData> {
 // valida contra datos sin cachear. Se opta por ruta bloqueante (sin PPR).
 export const instant = false;
 
-export default async function IngresoPage() {  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  if (!(await hasPermission(user, "session.open"))) {
+export default async function IngresoPage() {
+  const context = await requireBranchContext();
+  if (!context.branchId) redirect("/seleccionar-sucursal");
+  if (!context.can("session.open")) {
     return (
       <div className="mx-auto max-w-lg">
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
@@ -47,7 +52,7 @@ export default async function IngresoPage() {  const user = await getSessionUser
       </div>
     );
   }
-  const data = await loadIngresoData();
+  const data = await loadIngresoData(context.branchId);
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>

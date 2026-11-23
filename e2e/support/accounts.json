@@ -6,5 +6,9 @@
   "employee": {
     "email": "e2e-employee@parking.local",
     "password": "e2e-Employee-2026!"
+  },
+  "multibranch": {
+    "email": "e2e-multibranch@parking.local",
+    "password": "e2e-Multibranch-2026!"
   }
 }

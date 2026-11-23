@@ -1,0 +1,11 @@
+[WebServer] [e2e] dev listo: sucursal "E2E QA (Playwright)" con 10 boxes (usuario multibranch incluido)
+[WebServer] ▲ Next.js 16.4.6
+[WebServer] - Local:         http://localhost:3300
+[WebServer] - Network:       http://192.168.1.34:3300
+[WebServer] ✓ Ready in 415ms
+[WebServer] ✓ Running next.config.ts took 50ms
+
+Running 64 tests using 1 worker
+
+  ✓   1 [chromium] › e2e\admin\boxes.spec.ts:21:1 › el mapa de boxes busca, edita un box libre y persiste el cambio (13.7s)
+  ✓   2 [chromium] › e2e\admin\boxes.spec.ts:53:1 › estructura de boxes crea un piso con boxes, lo renombra y lo desactiva (46.9s)

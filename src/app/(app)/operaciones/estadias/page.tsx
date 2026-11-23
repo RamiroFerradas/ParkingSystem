@@ -23,7 +23,7 @@ interface OpenStay {
 }
 
 /** `ownerId` restringe a lo abierto por ese usuario (permiso `session.read_own`). */
-async function loadOpenStays(ownerId?: string): Promise<OpenStay[]> {
+async function loadOpenStays(branchId: string, ownerId?: string): Promise<OpenStay[]> {
   return query<OpenStay>(
     `SELECT s.id,
             s.ticket_number::text AS ticket_number,
@@ -45,9 +45,10 @@ async function loadOpenStays(ownerId?: string): Promise<OpenStay[]> {
        JOIN vehicle_types vt ON vt.id = s.vehicle_type_id
        JOIN parking_boxes b  ON b.id = s.box_id
       WHERE s.status = 'open'
-        AND ($1::uuid IS NULL OR s.opened_by = $1::uuid)
+        AND s.branch_id = $1::uuid
+        AND ($2::uuid IS NULL OR s.opened_by = $2::uuid)
       ORDER BY s.entry_at`,
-    [ownerId ?? null],
+    [branchId, ownerId ?? null],
   );
 }
 
@@ -77,7 +78,8 @@ export default function EstadiasActivasPage() {
 async function OpenStaysTable() {
   const scope = await historialScopeForSession();
   if (!scope) redirect("/login");
-  const stays = await loadOpenStays(scope.ownerId);
+  if (!scope.branchId) redirect("/seleccionar-sucursal");
+  const stays = await loadOpenStays(scope.branchId, scope.ownerId);
 
   if (stays.length === 0) {
     return (

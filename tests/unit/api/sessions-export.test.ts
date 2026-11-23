@@ -59,7 +59,7 @@ async function readCsv(res: Response) {
 
 beforeEach(() => {
   mockRequireUser.mockResolvedValue({ user, error: null });
-  mockScope.mockResolvedValue({ userId: "user-1" });
+  mockScope.mockResolvedValue({ userId: "user-1", branchId: "branch-1" });
   mockLoad.mockResolvedValue([row]);
 });
 
@@ -123,7 +123,7 @@ describe("GET /api/sessions/export", () => {
         plate: "AB123CD",
         status: "open",
       },
-      { userId: "user-1" },
+      { userId: "user-1", branchId: "branch-1" },
     );
   });
 
