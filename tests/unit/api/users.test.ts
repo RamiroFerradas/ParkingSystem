@@ -165,6 +165,7 @@ describe("POST /api/users", () => {
       "BEGIN",
       expect.stringContaining("INSERT INTO profiles"),
       expect.stringContaining("INSERT INTO auth_credentials"),
+      expect.stringContaining("INSERT INTO user_branches"),
       expect.stringContaining("INSERT INTO audit_logs"),
       "COMMIT",
     ]);
@@ -173,6 +174,12 @@ describe("POST /api/users", () => {
       String(sql).includes("INSERT INTO profiles"),
     );
     expect(profileInsert?.[1]).toEqual(["nuevo@example.com", "Nuevo Empleado", "employee"]);
+    // El alta deja al usuario operable en la sucursal del administrador: sin
+    // membresía el login termina en /seleccionar-sucursal.
+    const branchInsert = client.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO user_branches"),
+    );
+    expect(branchInsert?.[1]).toEqual(["new-user", "branch-1", "employee"]);
     const auditInsert = client.query.mock.calls.find(([sql]) =>
       String(sql).includes("INSERT INTO audit_logs"),
     );

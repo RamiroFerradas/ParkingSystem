@@ -94,6 +94,12 @@ export async function PATCH(
         `UPDATE profiles SET role = $2::user_role, updated_at = now() WHERE id = $1`,
         [id, role],
       );
+      // El rol efectivo sale de `user_branches` (la sucursal manda): sin esto el
+      // cambio de rol no se aplica en ninguna pantalla.
+      await query(
+        `UPDATE user_branches SET role = $2::user_role WHERE user_id = $1`,
+        [id, role],
+      );
     }
     if (typeof password === "string") {
       const passwordHash = await hash(password);

@@ -60,6 +60,12 @@ export async function POST(request: Request) {
 
   const { email: cleanEmail, fullName: cleanName, role, password: cleanPassword } = body;
 
+  // El alta tiene que dejar al usuario operable en la sucursal del administrador:
+  // sin membresía el login cae en /seleccionar-sucursal ("No tenés sucursales").
+  if (!user.branchId) {
+    return NextResponse.json({ error: "Seleccioná una sucursal" }, { status: 403 });
+  }
+
   if (!EMAIL_RE.test(cleanEmail) || cleanEmail.length > 120) {
     return NextResponse.json({ error: "Email inválido" }, { status: 400 });
   }
@@ -91,6 +97,13 @@ export async function POST(request: Request) {
       await client.query(
         `INSERT INTO auth_credentials (user_id, password_hash) VALUES ($1, $2)`,
         [profile.rows[0]!.id, passwordHash],
+      );
+      // Membresía en la sucursal del actor, con el mismo rol del alta.
+      await client.query(
+        `INSERT INTO user_branches (user_id, branch_id, role)
+         VALUES ($1, $2, $3::user_role)
+         ON CONFLICT (user_id, branch_id) DO UPDATE SET role = EXCLUDED.role`,
+        [profile.rows[0]!.id, user.branchId, role],
       );
       // El alta y su auditoría comparten transacción: si el actor ya no existe,
       // no queda un usuario creado sin rastro (ni un 409 en el reintento).

@@ -59,6 +59,9 @@ export default defineConfig({
 
   use: {
     baseURL,
+    // `E2E_SLOWMO=300 pnpm test:e2e:headed` slows every action down so the run
+    // can be watched in a real browser window.
+    launchOptions: { slowMo: Number(process.env.E2E_SLOWMO ?? 0) },
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
