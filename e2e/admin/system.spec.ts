@@ -5,6 +5,13 @@ import { test, expect } from "@playwright/test";
  * sync status that the cloud worker consumes.
  */
 test("la auditoría filtra por acción y muestra las columnas del registro", async ({ page }) => {
+  // Own the event instead of relying on earlier specs: on a clean database the
+  // admin suite runs before any journey opens a shift.
+  const opened = await page.request.post("/api/shifts/open", { data: {} });
+  expect([200, 400], `abrir turno (HTTP ${opened.status()})`).toContain(opened.status());
+  const closed = await page.request.post("/api/shifts/close", { data: { force: true } });
+  expect([200, 400], `cerrar turno (HTTP ${closed.status()})`).toContain(closed.status());
+
   await page.goto("/administracion/auditoria");
   await expect(page.getByRole("heading", { name: "Auditoría" })).toBeVisible();
 
@@ -16,10 +23,9 @@ test("la auditoría filtra por acción y muestra las columnas del registro", asy
   await page.getByRole("button", { name: "Filtrar" }).click();
   await expect(page).toHaveURL(/action=shift/);
 
-  // Opening and closing shifts is part of the journeys, so the log has rows.
-  const rows = page.locator("tbody tr");
-  await expect(rows.first()).toBeVisible();
+  const rows = page.locator("tbody tr").filter({ hasText: "shift." });
   await expect(rows.first()).toContainText("shift.");
+  await expect(page.getByText("Sin eventos que coincidan.")).toHaveCount(0);
 });
 
 test("la sincronización muestra los contadores y las corridas", async ({ page }) => {

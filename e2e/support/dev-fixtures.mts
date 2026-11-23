@@ -298,6 +298,10 @@ export async function resetDevRunState(client: import("pg").Client, branchId: st
 
   const testUsers = `SELECT id FROM profiles WHERE email LIKE 'e2e-user-%'`;
   await client.query(`DELETE FROM audit_logs WHERE actor_id IN (${testUsers})`);
+  // La auditoría de la sucursal E2E es de la suite: se limpia para que cada
+  // corrida arranque como una base nueva (si no, un test depende de corridas
+  // anteriores y falla en CI).
+  await client.query(`DELETE FROM audit_logs WHERE branch_id = $1`, [branchId]);
   await client.query(`DELETE FROM user_permissions WHERE user_id IN (${testUsers})`);
   await client.query(`DELETE FROM user_branches WHERE user_id IN (${testUsers})`);
   await client.query(`DELETE FROM auth_credentials WHERE user_id IN (${testUsers})`);

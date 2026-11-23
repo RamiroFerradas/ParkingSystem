@@ -28,6 +28,15 @@ test("el reporte general cambia de período, muestra KPIs y exporta CSV", async 
 });
 
 test("el ranking de boxes filtra por mes y pagina", async ({ page }) => {
+  // The month is relative: CI does not run in the same month as a local dev box.
+  const month = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Cordoba",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(new Date())
+    .slice(0, 7);
+
   await page.goto("/reportes/boxes");
   await expect(page.getByRole("heading", { name: "Boxes con más movimiento" })).toBeVisible();
 
@@ -35,9 +44,9 @@ test("el ranking de boxes filtra por mes y pagina", async ({ page }) => {
     await expect(page.getByRole("columnheader", { name: header })).toBeVisible();
   }
 
-  await page.getByLabel("Mes").fill("2026-11");
+  await page.getByLabel("Mes").fill(month);
   await page.getByRole("button", { name: "Ver" }).click();
-  await expect(page).toHaveURL(/m=2026-11/);
+  await expect(page).toHaveURL(new RegExp(`m=${month}`));
   await expect(page.getByRole("navigation", { name: "Paginación del ranking" })).toBeVisible();
 });
 

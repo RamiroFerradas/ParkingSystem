@@ -47,3 +47,6 @@ backups/
 
 # Logs de corridas e2e
 test-e2e-run*.log
+
+# Logs de simulación de CI
+ci-sim.log
