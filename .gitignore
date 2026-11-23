@@ -44,3 +44,6 @@ backups/
 
 # playwright mcp scratch
 /.playwright-mcp/
+
+# Logs de corridas e2e
+test-e2e-run*.log
