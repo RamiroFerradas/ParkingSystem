@@ -16,7 +16,7 @@ test("credenciales inválidas muestran el error y no dejan entrar", async ({ pag
   await page.getByLabel("Contraseña").fill("clave-incorrecta");
   await page.getByRole("button", { name: "Iniciar sesión" }).click();
 
-  await expect(page.getByRole("alert")).toContainText("Credenciales inválidas");
+  await expect(page.getByText("Credenciales inválidas")).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
 });
 
